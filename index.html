@@ -147,10 +147,10 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
   var mem={};
   function readCfg(){try{return JSON.parse(lsGet(CFG_KEY)||'{}')||{};}catch(e){return {};}}
   var OLD_DEFAULTS=['gemini-3.8-flash'],OLD_QUICK=['gemini-3.5-flash-lite'],FALLBACK='gemini-3.6-flash';
-  var GROQ_MODEL='llama-3.3-70b-versatile',GROQ_FALLBACK='llama-3.1-8b-instant';
+  var GROQ_MODEL='openai/gpt-oss-120b',GROQ_FALLBACK='openai/gpt-oss-20b',OLD_GROQ=['llama-3.3-70b-versatile','llama-3.1-8b-instant'];
   function cfg(){
     var c=readCfg();
-    if(c.provider==='groq')return {provider:'groq',key:c.groqKey||'',model:c.groqModel||GROQ_MODEL,quick:c.groqQuick||GROQ_MODEL};
+    if(c.provider==='groq'){var gm=c.groqModel,gq=c.groqQuick;if(!gm||OLD_GROQ.indexOf(gm)>=0)gm=GROQ_MODEL;if(!gq||OLD_GROQ.indexOf(gq)>=0)gq=GROQ_MODEL;return {provider:'groq',key:c.groqKey||'',model:gm,quick:gq};}
     var m=c.model,q=c.quick;if(!m||OLD_DEFAULTS.indexOf(m)>=0)m='gemini-3.5-flash';if(!q||OLD_QUICK.indexOf(q)>=0)q='gemini-3.5-flash';
     return {provider:'gemini',key:c.key||'',model:m,quick:q};
   }
@@ -217,6 +217,8 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
         var msgs=toOA(input);
         if(json)msgs.unshift({role:'system',content:'Respond only with one valid JSON object, no extra text.'});
         var gb={model:m,messages:msgs,max_tokens:4096,temperature:0.6};
+        /* modelos de raciocínio do Groq: pouco raciocínio, para responder rápido */
+        if(think)gb.reasoning_effort=/qwen3/i.test(m)?'none':'low';
         if(json)gb.response_format={type:'json_object'};
         if(stream)gb.stream=true;
         return {url:'https://api.groq.com/openai/v1/chat/completions',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:gb};
@@ -242,12 +244,12 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
       }finally{clearTimeout(tm);if(sig)sig.removeEventListener('abort',onAbort);}
     }
     async function attempt(m){
-      var think=!groq&&/^gemini-3/i.test(m);
+      var think=groq?/gpt-oss|qwen3/i.test(m):/^gemini-3/i.test(m);
       var r=await post(m,think);
       /* se o modelo não aceitar o ajuste de raciocínio, tenta de novo sem ele */
       if(!r.ok&&r.status===400&&think){
         var tx=await r.text();
-        if(/think/i.test(tx))r=await post(m,false);
+        if(/think|reason/i.test(tx))r=await post(m,false);
         else return {ok:false,status:400,text:async function(){return tx;}};
       }
       return r;
