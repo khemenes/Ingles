@@ -215,6 +215,8 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
     function build(m,think){
       if(groq){
         var msgs=toOA(input);
+        /* conversa: a primeira mensagem são as instruções do professor; no Groq elas funcionam melhor como "system" */
+        if(Array.isArray(input)&&msgs.length>=2&&msgs[0].role==='user')msgs[0]={role:'system',content:msgs[0].content+(json?'':'\n\nIMPORTANT: Write ONLY your own next message as the teacher. Never write the student\'s lines, never answer your own question, never continue the dialogue for the student.')};
         if(json)msgs.unshift({role:'system',content:'Respond only with one valid JSON object, no extra text.'});
         var gb={model:m,messages:msgs,max_tokens:4096,temperature:0.6};
         /* modelos de raciocínio do Groq: pouco raciocínio, para responder rápido */
