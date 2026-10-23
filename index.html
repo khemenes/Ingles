@@ -146,7 +146,8 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
   function lsSet(k,v){try{window.localStorage.setItem(k,v);return true;}catch(e){return false;}}
   var mem={};
   function readCfg(){try{return JSON.parse(lsGet(CFG_KEY)||'{}')||{};}catch(e){return {};}}
-  function cfg(){var c=readCfg();return {key:c.key||'',model:c.model||'gemini-3.8-flash',quick:c.quick||'gemini-3.5-flash-lite'};}
+  var OLD_DEFAULTS=['gemini-3.8-flash'];
+  function cfg(){var c=readCfg();var m=c.model;if(!m||OLD_DEFAULTS.indexOf(m)>=0)m='gemini-3.5-flash';return {key:c.key||'',model:m,quick:c.quick||'gemini-3.5-flash-lite'};}
   function saveCfg(o){var c=Object.assign(readCfg(),o);lsSet(CFG_KEY,JSON.stringify(c));}
   function readDb(){try{return JSON.parse(lsGet(DB_KEY)||'{}')||{};}catch(e){return {};}}
   var listeners=[];
@@ -182,27 +183,56 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
   async function call(input,opts,json){
     var c=cfg();if(!c.key)throw err('no_key');
     var model=opts&&opts.modelTier==='default'?c.model:c.quick;
-    var base='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model);
-    var body={contents:toGem(input),generationConfig:{maxOutputTokens:8192}};
-    /* nos modelos 3.x o "raciocínio" gasta o mesmo limite da resposta: pedimos pouco raciocínio */
-    var think=/^gemini-3/i.test(model);
-    if(think)body.generationConfig.thinkingConfig={thinkingLevel:'low'};
-    if(json)body.generationConfig.responseMimeType='application/json';
-    var headers={'Content-Type':'application/json','x-goog-api-key':c.key};
     var sig=opts&&opts.signal,stream=!json&&opts&&typeof opts.onText==='function';
-    var resp;
-    var url=base+(stream?':streamGenerateContent?alt=sse':':generateContent');
-    async function send(){
-      try{return await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body),signal:sig});}
-      catch(e){if(e&&e.name==='AbortError')throw err('cancelled');throw err('network',String(e&&e.message||e));}
+    var headers={'Content-Type':'application/json','x-goog-api-key':c.key};
+    var WAIT=(typeof window.IC_RETRY_MS==='number')?window.IC_RETRY_MS:2000,FIRST_BYTE=(typeof window.IC_TIMEOUT_MS==='number')?window.IC_TIMEOUT_MS:40000;
+    function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+    /* uma tentativa: espera no máximo FIRST_BYTE ms pelo início da resposta */
+    async function post(m,think){
+      var body={contents:toGem(input),generationConfig:{maxOutputTokens:8192}};
+      /* nos modelos 3.x o "raciocínio" gasta o mesmo limite da resposta: pedimos pouco raciocínio */
+      if(think)body.generationConfig.thinkingConfig={thinkingLevel:'low'};
+      if(json)body.generationConfig.responseMimeType='application/json';
+      var url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+(stream?':streamGenerateContent?alt=sse':':generateContent');
+      var ac=new AbortController(),timedOut=false;
+      var tm=setTimeout(function(){timedOut=true;ac.abort();},FIRST_BYTE);
+      var onAbort=function(){ac.abort();};
+      if(sig){if(sig.aborted)ac.abort();else sig.addEventListener('abort',onAbort);}
+      try{return await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body),signal:ac.signal});}
+      catch(e){
+        if(timedOut)throw err('busy','sem resposta em '+Math.round(FIRST_BYTE/1000)+'s');
+        if(e&&e.name==='AbortError')throw err('cancelled');
+        throw err('network',String(e&&e.message||e));
+      }finally{clearTimeout(tm);if(sig)sig.removeEventListener('abort',onAbort);}
     }
-    resp=await send();
-    if(!resp.ok){
-      var tx='';try{tx=await resp.text();}catch(e){}
+    async function attempt(m){
+      var think=/^gemini-3/i.test(m);
+      var r=await post(m,think);
       /* se o modelo não aceitar o ajuste de raciocínio, tenta de novo sem ele */
-      if(resp.status===400&&think&&/think/i.test(tx)){delete body.generationConfig.thinkingConfig;resp=await send();if(resp.ok)tx=null;else{try{tx=await resp.text();}catch(e){tx='';}}}
-      if(tx!==null)throw httpErr(resp.status,tx);
+      if(!r.ok&&r.status===400&&think){
+        var tx=await r.text();
+        if(/think/i.test(tx))r=await post(m,false);
+        else return {ok:false,status:400,text:async function(){return tx;}};
+      }
+      return r;
     }
+    /* 2 tentativas no modelo escolhido; se continuar sobrecarregado, 2 no modelo rápido */
+    var models=[model];if(model!==c.quick)models.push(c.quick);
+    var resp=null,lastErr=null;
+    for(var mi=0;mi<models.length&&!resp;mi++){
+      for(var at=0;at<2&&!resp;at++){
+        if(mi+at>0)await sleep(WAIT);
+        try{
+          var r=await attempt(models[mi]);
+          if(r.ok){resp=r;break;}
+          var tx='';try{tx=await r.text();}catch(e){}
+          var he=httpErr(r.status,tx);
+          if(he.code!=='busy')throw he;
+          lastErr=he;
+        }catch(e){if(e&&e.code==='busy'){lastErr=e;continue;}throw e;}
+      }
+    }
+    if(!resp)throw lastErr||err('busy');
     function textOf(j){var cs=j&&j.candidates,p=cs&&cs[0]&&cs[0].content&&cs[0].content.parts;return p?p.map(function(x){return x.text||'';}).join(''):'';}
     var text='';
     try{
