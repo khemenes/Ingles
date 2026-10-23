@@ -3,8 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Inglês com Claudio</title>
+<title>Speak with me</title>
 <meta name="theme-color" content="#0A6B5C">
+<meta name="application-name" content="Speak with me">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Speak with me">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -329,6 +336,20 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
     return 'Falha de conexão com a IA'+(e&&e.message?' ('+String(e.message).slice(0,80)+')':'')+'. Confira a internet e a chave; se continuar, me avise com esta mensagem.';
   }
   window.IC.errMsg=errMsg;
+  /* instalar como app (atalho): o navegador avisa quando é possível */
+  var deferredInstall=null;
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferredInstall=e;});
+  window.addEventListener('appinstalled',function(){deferredInstall=null;});
+  window.IC.canInstall=function(){return !!deferredInstall;};
+  window.IC.install=async function(){
+    if(!deferredInstall)return false;
+    try{deferredInstall.prompt();var ch=await deferredInstall.userChoice;deferredInstall=null;return !!(ch&&ch.outcome==='accepted');}catch(e){return false;}
+  };
+  /* funciona sem internet depois da primeira visita (a IA ainda precisa de internet) */
+  if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+    window.addEventListener('load',function(){try{navigator.serviceWorker.register('sw.js').catch(function(){});}catch(e){}});
+  }
+
   window.claude={use:async function(n){
     if(n==='sample')return sample;
     if(n==='db')return db;
@@ -467,7 +488,7 @@ function levelCard(l){
     '<p class="small muted">'+levelClosed(l)+' de 10 unidades fechadas · faltam '+pf(100-pc)+' para o nível</p></div>';
 }
 function home(){
-  var cur=currentUnit(),h='<header><div class="eyebrow">B1 → B2</div><h1>Inglês com Claudio</h1></header>';
+  var cur=currentUnit(),h='<header><div class="eyebrow">B1 → B2</div><h1>Speak with me</h1></header>';
   h+=levelCard(0)+levelCard(1)+levelCard(2);
   if(cur&&isP(cur)){
     var pu=UNITS[cur-1],pp=prog(cur);
@@ -504,6 +525,7 @@ function icCard(){
    '<label class="small" for="icQuick">Modelo rápido (dúvidas e escrita)</label><input type="text" id="icQuick" class="wide" autocomplete="off" autocapitalize="none" spellcheck="false" value="'+esc(c.quick)+'">'+
    '<div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="icsave">Salvar</button><button class="btn" data-act="ictest">Testar conexão</button></div>'+
    '<p class="small muted">A chave fica só neste navegador. Para gerar uma chave gratuita: '+(g?'console.groq.com/keys.':'aistudio.google.com/apikey.')+' Cada serviço guarda a própria chave: trocar o serviço não apaga a outra.</p>'+
+   '<div class="eyebrow" style="margin-top:12px">Atalho do app</div><p class="small muted">Crie um atalho para abrir como app. Android e computador (Chrome): menu ⋮ → Instalar app. iPhone (Safari): botão Compartilhar → Adicionar à Tela de Início.</p>'+(IC.canInstall&&IC.canInstall()?'<div class="row"><button class="btn" data-act="icinstall">Instalar como app</button></div>':'')+
    '<div class="eyebrow" style="margin-top:12px">Backup do progresso</div><p class="small muted">O progresso fica salvo neste navegador. Exporte de vez em quando, e importe para levar a outro aparelho.</p>'+
    '<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="icexp">Exportar progresso</button><button class="btn" data-act="icimp">Importar progresso</button></div>'+
    '<input type="file" id="icFile" accept="application/json,.json" hidden></section>';
@@ -2181,6 +2203,7 @@ function act(a,t){
    case 'icsave':{var k=document.getElementById('icKey'),m=document.getElementById('icModel'),q=document.getElementById('icQuick'),o={};
      if(k&&k.value.trim())o.key=k.value.trim();if(m&&m.value.trim())o.model=m.value.trim();if(q&&q.value.trim())o.quick=q.value.trim();
      IC.saveCfg(o);if(k)k.value='';flash('Ajustes salvos.');S.pending=false;render();break;}
+   case 'icinstall':{IC.install().then(function(ok){flash(ok?'App instalado.':'Instalação cancelada.');render();});break;}
    case 'ictest':{flash('Testando…');IC.testConnection().then(function(r){flash(r.msg);});break;}
    case 'icexp':{try{var bl=new Blob([IC.exportData()],{type:'application/json'}),u=URL.createObjectURL(bl),a2=document.createElement('a');a2.href=u;a2.download='ingles-claudio-progresso-'+today()+'.json';document.body.appendChild(a2);a2.click();document.body.removeChild(a2);setTimeout(function(){URL.revokeObjectURL(u);},2000);flash('Backup baixado.');}catch(e){flash('Não foi possível gerar o backup.');}break;}
    case 'icimp':{var f=document.getElementById('icFile');if(f)f.click();break;}
