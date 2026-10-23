@@ -21,6 +21,7 @@ Os nomes dos modelos mudam com o tempo. Se o teste disser que o modelo não exis
 
 ## Voz
 - **Conversa por voz:** dentro da conversa com o professor, toque em **Falar**, diga a frase em inglês e pare de falar: o app envia sozinho. Ligue **Ouvir as respostas** para o professor falar em voz alta, e **Modo voz** para o professor falar e o app ouvir você de novo, sem tocar na tela.
+- **Microfone ao lado de cada alto-falante:** nos vocabulários, nas frases de exemplo e no banco de palavras, toque no microfone para ouvir, repetir em voz alta e ver se a IA entendeu.
 - **Repetir frases:** na aba **Treino**, o cartão **Repetir frases** toca uma frase, você repete e vê quais palavras foram entendidas.
 - O microfone precisa de permissão do navegador (cadeado ao lado do endereço). A fala é transformada em texto pela IA da sua chave: se houver chave do Groq, usa o Whisper do Groq (mais rápido); senão usa o Gemini. O áudio não fica guardado.
 - A nota de "Repetir frases" mostra se você foi entendido palavra por palavra. Ela não mede o sotaque.

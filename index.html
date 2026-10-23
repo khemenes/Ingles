@@ -138,6 +138,9 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
 .vlev i{display:block;height:100%;width:0;background:var(--accent);transition:width .08s linear}
 .vtog{cursor:pointer;font:inherit;font-size:13px;font-weight:600;min-height:36px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface2);color:var(--ink)}
 .vtog[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.say.mic{margin-left:4px}
+.psheet{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:7;max-width:560px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:8px}
+.psheet[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -855,7 +858,7 @@ function pronOf(s){
 function pronSpan(s){var p=pronOf(s);return p?'<span class="pr" hidden>'+esc(p)+'</span>':'';}
 function pw(h,s){return canSay(s)&&pronOf(s)?'<span class="pw" data-act="pron" role="button" tabindex="0">'+h+'</span>':h;}
 function prFor(el){var e=el.closest('strong,em')||el;for(var i=0;i<3&&e;i++){e=e.nextElementSibling;if(e&&e.classList&&e.classList.contains('pr'))return e;}return null;}
-function sayMaybe(s){return canSay(s)?sayBtn(s)+pronSpan(s):'';}
+function sayMaybe(s){return canSay(s)?sayBtnM(s)+pronSpan(s):'';}
 function sayPick(){
   var vs=(window.speechSynthesis.getVoices()||[]).filter(function(v){return /^en/i.test(v.lang);});
   var sc=function(v){var n=(/^en[-_]US/i.test(v.lang)?4:0)+(/Samantha|Google US|Aria|Jenny|Natural|Enhanced|Premium/i.test(v.name)?3:0)+(/^en[-_]GB/i.test(v.lang)?1:0);return n;};
@@ -961,7 +964,7 @@ function stepBody(n,i,s,D,has){
   if(s.kind==='aula'){
     if(D==='loading')h+=wait;
     else if(!has)h+=none;
-    else h+='<p class="muted">'+esc(les.goal)+'</p><article class="prose">'+(speechOk()?'<p class="small muted">Toque no botão de som para ouvir. Toque de novo para ouvir mais devagar. Toque na palavra sublinhada para ver como ela se pronuncia.</p>':'')+aulaHtml(les.aula,L)+'</article>';
+    else h+='<p class="muted">'+esc(les.goal)+'</p><article class="prose">'+(speechOk()?'<p class="small muted">Toque no botão de som para ouvir. Toque de novo para ouvir mais devagar. Toque na palavra sublinhada para ver como ela se pronuncia.'+(voiceOk()?' Toque no microfone para repetir em voz alta e ver se a IA entendeu.':'')+'</p>':'')+aulaHtml(les.aula,L)+'</article>';
   }else if(s.kind==='exercicios'){
     if(D==='loading')h+=wait;
     else if(!has)h+=none;
@@ -1206,7 +1209,7 @@ function lisScreen(){
   if(!l.done)return h+'<button class="btn primary" data-act="lischeck">Conferir</button>';
   h+='<div class="'+(l.ok===3?'okbox':'warnbox')+'"><strong class="num">'+l.ok+' de 3 certas.</strong>'+(l.ok===3?'':'<p class="small">Ouça de novo, devagar, e depois veja a transcrição.</p>')+'</div>';
   h+='<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="listx">'+(l.tx?'Esconder a transcrição':'Ver a transcrição')+'</button><button class="btn" data-act="lisagain" data-id="'+p.id+'">Tentar de novo</button><button class="btn ghost" data-act="lisback">Voltar</button></div>';
-  if(l.tx)h+='<section class="card">'+p.lines.map(function(ln){return '<p class="small"><strong>'+esc(p.spk[ln.s].name)+':</strong> '+esc(ln.t)+sayBtn(ln.t)+'</p>';}).join('')+'</section>';
+  if(l.tx)h+='<section class="card">'+p.lines.map(function(ln){return '<p class="small"><strong>'+esc(p.spk[ln.s].name)+':</strong> '+esc(ln.t)+sayBtnM(ln.t)+'</p>';}).join('')+'</section>';
   return h;
 }
 
@@ -1317,8 +1320,8 @@ function prScreen(){
   var s=S.ex,it=exItem('pr',s.u);
   var h=exHead(s,it,'Pronúncia');
   h+='<section class="card"><div class="row" style="flex-wrap:wrap"><span class="chip">Foco: '+esc(it.focus)+'</span></div>'+it.explain.map(function(t){return '<p class="small">'+mk(t)+'</p>';}).join('')+'</section>';
-  h+='<section class="card"><h3>Ouça e repita</h3><p class="small muted">Toque no alto-falante, ouça e repita em voz alta. A parte em português mostra como soa, e é uma aproximação.</p><div class="list">'+it.words.map(function(w){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(w.en)+'</strong> <span class="small muted">'+esc(w.pt)+'</span></span>'+sayBtn(w.en)+'</div>';}).join('')+'</div></section>';
-  h+='<section class="card"><h3>Frases para treinar</h3><div class="list">'+it.sents.map(function(t){return '<div class="row" style="align-items:center"><span class="grow">'+esc(t)+'</span>'+sayBtn(t)+'</div>';}).join('')+'</div></section>';
+  h+='<section class="card"><h3>Ouça e repita</h3><p class="small muted">Toque no alto-falante, ouça e repita em voz alta. A parte em português mostra como soa, e é uma aproximação.</p><div class="list">'+it.words.map(function(w){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(w.en)+'</strong> <span class="small muted">'+esc(w.pt)+'</span></span>'+sayBtnM(w.en)+'</div>';}).join('')+'</div></section>';
+  h+='<section class="card"><h3>Frases para treinar</h3><div class="list">'+it.sents.map(function(t){return '<div class="row" style="align-items:center"><span class="grow">'+esc(t)+'</span>'+sayBtnM(t)+'</div>';}).join('')+'</div></section>';
   h+='<p class="small muted">A voz vem do seu aparelho e muda de um celular para outro. Use como modelo, não como juiz: o app não ouve você.</p>';
   h+='<h3 style="padding-top:8px">Teste de escuta</h3>'+exQuiz(s,it.quiz,true);
   return h;
@@ -1326,14 +1329,14 @@ function prScreen(){
 function rdScreen(){
   var s=S.ex,it=exItem('rd',s.u);
   var h=exHead(s,it,'Leitura · '+it.level);
-  h+='<section class="card">'+it.text.map(function(t){return '<p>'+esc(t)+sayBtn(t)+'</p>';}).join('')+'</section>';
-  h+='<section class="card"><h3>Palavras do texto</h3><div class="list">'+it.gloss.map(function(g){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(g.en)+'</strong> <span class="small muted">'+esc(g.pt)+'</span></span>'+sayBtn(g.en)+'</div>';}).join('')+'</div></section>';
+  h+='<section class="card">'+it.text.map(function(t){return '<p>'+esc(t)+sayBtnM(t)+'</p>';}).join('')+'</section>';
+  h+='<section class="card"><h3>Palavras do texto</h3><div class="list">'+it.gloss.map(function(g){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(g.en)+'</strong> <span class="small muted">'+esc(g.pt)+'</span></span>'+sayBtnM(g.en)+'</div>';}).join('')+'</div></section>';
   h+='<p class="small muted">Leia uma vez sem ver as palavras. Depois releia e responda. Você pode voltar ao texto quantas vezes quiser.</p>';
   return h+exQuiz(s,it.qs,false);
 }
 function wrFeedback(r){
   var h='<section class="card"><div class="row"><div class="big num">'+String(r.nota).replace('.',',')+'</div><p class="small muted grow">de 10'+(r.cob!=null?' · pontos da tarefa cobertos: '+r.cob+' de 3':'')+'</p></div>';
-  if(r.corrigido)h+='<p class="small muted">Seu texto corrigido</p><p>'+esc(r.corrigido)+sayBtn(r.corrigido)+'</p>';
+  if(r.corrigido)h+='<p class="small muted">Seu texto corrigido</p><p>'+esc(r.corrigido)+sayBtnM(r.corrigido)+'</p>';
   h+='</section>';
   if(r.erros&&r.erros.length)h+='<section class="card"><h3>O que corrigir</h3><div class="list">'+r.erros.map(function(e){return '<div><p><span class="wrongtxt">'+esc(e.escrito)+'</span><br><strong>'+esc(e.correto)+'</strong></p><p class="small muted">'+esc(e.explicacao)+'</p></div>';}).join('')+'</div><p class="small muted">Esses erros foram para a aba Revisão.</p></section>';
   else h+='<div class="okbox small"><strong>Nenhum erro encontrado.</strong></div>';
@@ -1345,7 +1348,7 @@ function wrScreen(){
   var s=S.ex,it=exItem('wr',s.u),r=s.res&&s.res.rep;
   var h=exHead(s,it,'Escrita · '+it.kind);
   h+='<section class="card"><p class="small muted">Tarefa</p><p>'+esc(it.sit)+'</p><p class="small muted">Inclua:</p><ul>'+it.pts.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul><p class="small"><strong>Tamanho:</strong> '+it.min+' a '+it.max+' palavras.</p><p class="small"><strong>Gramática desta unidade:</strong> '+esc(it.use)+'</p></section>';
-  h+='<section class="card"><h3>Frases úteis</h3><div class="list">'+it.phr.map(function(g){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(g.en)+'</strong> <span class="small muted">'+esc(g.pt)+'</span></span>'+sayBtn(g.en)+'</div>';}).join('')+'</div></section>';
+  h+='<section class="card"><h3>Frases úteis</h3><div class="list">'+it.phr.map(function(g){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(g.en)+'</strong> <span class="small muted">'+esc(g.pt)+'</span></span>'+sayBtnM(g.en)+'</div>';}).join('')+'</div></section>';
   if(!S.sampleReady)return h+'<p class="muted">Verificando o professor IA…</p>';
   if(!S.sample)return h+'<div class="warnbox small"><strong>O professor IA não está disponível aqui.</strong> Abra Ajustes, na tela Início, e cole a chave de API.</div>';
   if(r){
@@ -1520,7 +1523,7 @@ function vcList(){
   h+='<section class="card"><p class="small"><strong class="num">'+L+' de '+n+'</strong> aprendidas. Uma palavra conta como aprendida depois de 3 acertos em dias diferentes. As que você erra voltam no dia seguinte.</p>'+vcBar(L,n)+'<button class="btn primary" data-act="vcgo">Praticar 10 palavras</button></section>';
   h+='<section class="card"><div class="list">'+items.map(function(r,i){
     var id=u+'.'+i,st=vcStatus(id);
-    return '<div style="padding:10px 0;'+(i?'border-top:1px solid var(--line)':'')+'"><div class="row" style="align-items:center"><span class="grow"><strong>'+esc(r[0])+'</strong> <span class="small muted">'+(VPOS[r[1]]||r[1])+'</span></span><span class="chip'+(st==='aprendida'?' ok':'')+'">'+st+'</span>'+sayBtn(r[0])+'</div><div>'+esc(r[2])+'</div><div class="row" style="align-items:center"><span class="grow small muted"><em>'+esc(r[3])+'</em></span>'+sayBtn(r[3])+'</div></div>';
+    return '<div style="padding:10px 0;'+(i?'border-top:1px solid var(--line)':'')+'"><div class="row" style="align-items:center"><span class="grow"><strong>'+esc(r[0])+'</strong> <span class="small muted">'+(VPOS[r[1]]||r[1])+'</span></span><span class="chip'+(st==='aprendida'?' ok':'')+'">'+st+'</span>'+sayBtnM(r[0])+'</div><div>'+esc(r[2])+'</div><div class="row" style="align-items:center"><span class="grow small muted"><em>'+esc(r[3])+'</em></span>'+sayBtnM(r[3])+'</div></div>';
   }).join('')+'</div></section>';
   return h;
 }
@@ -1537,7 +1540,7 @@ function vcQuiz(){
   }).join('')+'</div></section>';
   if(s.sel!=null){
     var okk=s.sel===q.a;
-    h+='<div class="'+(okk?'okbox':'warnbox')+'"><strong>'+(okk?'Certo!':'Não foi dessa vez.')+'</strong><div><strong>'+esc(wd.w)+'</strong> = '+esc(wd.pt)+'</div><div class="row" style="align-items:center"><span class="grow small"><em>'+esc(wd.ex)+'</em></span>'+sayBtn(wd.ex)+'</div></div>';
+    h+='<div class="'+(okk?'okbox':'warnbox')+'"><strong>'+(okk?'Certo!':'Não foi dessa vez.')+'</strong><div><strong>'+esc(wd.w)+'</strong> = '+esc(wd.pt)+'</div><div class="row" style="align-items:center"><span class="grow small"><em>'+esc(wd.ex)+'</em></span>'+sayBtnM(wd.ex)+'</div></div>';
     h+='<button class="btn primary" data-act="vcnext">'+(s.i+1>=s.qs.length?'Ver resultado':'Próxima')+'</button>';
   }
   return h;
@@ -1545,7 +1548,7 @@ function vcQuiz(){
 function vcDone(){
   var s=S.vc,n=s.qs.length,h='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">'+(s.u?'Unidade '+dn(s.u)+' · ':'Revisão · ')+'Palavras</div><h2>Resultado</h2></header>';
   h+='<div class="'+(s.ok>=Math.ceil(n*0.8)?'okbox':'warnbox')+'"><strong class="num">'+s.ok+' de '+n+' certas.</strong>'+(s.miss.length?'<p class="small">As erradas voltam amanhã.</p>':'')+'</div>';
-  if(s.miss.length)h+='<section class="card"><h3>Para fixar</h3><div class="list">'+s.miss.map(function(id){var x=vcWord(id);return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(x.w)+'</strong> = '+esc(x.pt)+'</span>'+sayBtn(x.w)+'</div>';}).join('')+'</div></section>';
+  if(s.miss.length)h+='<section class="card"><h3>Para fixar</h3><div class="list">'+s.miss.map(function(id){var x=vcWord(id);return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(x.w)+'</strong> = '+esc(x.pt)+'</span>'+sayBtnM(x.w)+'</div>';}).join('')+'</div></section>';
   var more=s.u?true:vcDueList().length>0;
   h+='<div class="row" style="flex-wrap:wrap">'+(more?'<button class="btn" data-act="vcagain">'+(s.u?'Praticar mais 10':'Rever mais palavras')+'</button>':'')+'<button class="btn ghost" data-act="vcback">Voltar</button></div>';
   return h;
@@ -1587,7 +1590,7 @@ function gxScreen(){
   var s=S.gx,it=gxItem(s.g);
   var h='<header><button class="btn ghost" data-act="gxback">'+ic(I.back,18)+gxBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">Unidade '+dn(it.u)+' · Gramática extra · '+it.level+'</div><h2>'+esc(it.title)+'</h2></header>';
   h+='<section class="card">'+it.explain.map(function(t){return '<p class="small">'+mk(t)+'</p>';}).join('')+'</section>';
-  h+='<section class="card"><h3>Exemplos</h3><div class="list">'+it.ex.map(function(e){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(e[0])+'</strong><span class="small muted" style="display:block">'+esc(e[1])+'</span></span>'+sayBtn(e[0])+'</div>';}).join('')+'</div></section>';
+  h+='<section class="card"><h3>Exemplos</h3><div class="list">'+it.ex.map(function(e){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(e[0])+'</strong><span class="small muted" style="display:block">'+esc(e[1])+'</span></span>'+sayBtnM(e[0])+'</div>';}).join('')+'</div></section>';
   h+='<section class="card"><h3>Erros comuns de brasileiro</h3>'+it.mist.map(function(m){return '<p class="small"><del style="color:var(--crit)">'+esc(m[0])+'</del><br><strong>'+esc(m[1])+'</strong><br><span class="muted">'+esc(m[2])+'</span></p>';}).join('')+'</section>';
   h+='<h3 style="padding-top:8px">Teste</h3><div id="gxres">'+(s.done?'<div class="'+(s.ok>=5?'okbox':'warnbox')+'"><strong class="num">'+s.ok+' de '+it.qs.length+' certas.</strong>'+(s.ok>=5?'':'<p class="small">Releia a explicação e os exemplos e tente de novo.</p>')+'</div>':'')+'</div>';
   it.qs.forEach(function(q,i){
@@ -1764,7 +1767,7 @@ function laScreen(){
   });
   if(!s.done)return h+'<button class="btn primary" data-act="lacheck">Conferir</button>';
   h+='<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="latx">'+(s.tx?'Esconder a transcrição':'Ver a transcrição')+'</button><button class="btn" data-act="laagain" data-i="'+s.i+'">Tentar de novo</button><button class="btn ghost" data-act="laback">Voltar</button></div>';
-  if(s.tx)h+='<section class="card">'+p.lines.map(function(ln){return '<p class="small"><strong>'+esc(p.spk[ln.s].name)+':</strong> '+esc(ln.t)+sayBtn(ln.t)+'</p>';}).join('')+'</section>';
+  if(s.tx)h+='<section class="card">'+p.lines.map(function(ln){return '<p class="small"><strong>'+esc(p.spk[ln.s].name)+':</strong> '+esc(ln.t)+sayBtnM(ln.t)+'</p>';}).join('')+'</section>';
   return h;
 }
 function laClear(n){
@@ -2031,6 +2034,7 @@ function go(view){
   if(S.lis&&S.lis.from!=null&&!(view.unit===S.lis.from&&view.step==null)){S.lis=null;try{window.speechSynthesis.cancel();}catch(e){}}
   if(S.chat&&!view.chat){if(S.chat.busy&&S.chat.ctl)S.chat.ctl.abort();voiceLeave();S.chat=null;}
   if(S.rp&&(view.tab!=='practice'||view.chat||view.unit!=null))rpHalt();
+  if(PS.text)psClose();
   var ae=document.activeElement;if(ae&&app.contains(ae)&&ae.blur)ae.blur();
   S.view=view;S.confirmReset=null;S.reveal=false;S.rv=null;S.drafts.rv='';S.exAns=null;S.testRes=null;window.scrollTo(0,0);render();}
 
@@ -2514,8 +2518,84 @@ function rpAct(a,t){
    case 'rpback':rpHalt();S.rp=null;render();break;
   }
 }
+/* ---------- repetir qualquer palavra ou frase (botão do microfone ao lado do alto-falante) ---------- */
+function sayBtnM(s){
+  var b=sayBtn(s),t=speakText(s);
+  if(!b||!t||!voiceOk())return b;
+  return b+'<button type="button" class="say mic" data-act="pmic" data-say="'+esc(t)+'" aria-label="Repetir em voz alta: '+esc(t)+'">'+ic(I.mic,16)+'</button>';
+}
+var PS={gen:0,rec:null,ctl:null,text:'',phase:'q',listening:false,cur:null,err:''};
+function psEl(){
+  var e=document.getElementById('psheet');
+  if(!e){e=document.createElement('div');e.id='psheet';e.className='psheet';e.hidden=true;e.setAttribute('role','dialog');e.setAttribute('aria-label','Repetir em voz alta');document.body.appendChild(e);}
+  return e;
+}
+function psPaint(){
+  var e=psEl();
+  if(!PS.text){e.hidden=true;e.innerHTML='';return;}
+  var h='<div class="row"><strong class="grow">Repita em voz alta</strong><button type="button" class="btn ghost" data-act="pclose">Fechar</button></div>'+
+    '<p style="font-size:19px;margin:6px 0"><strong>'+esc(PS.text)+'</strong></p>';
+  var pr=pronOf(PS.text);if(pr)h+='<p class="pr" style="display:block;margin:0 0 8px">'+esc(pr)+'</p>';
+  if(PS.err)h+='<div class="warnbox small"><strong>'+esc(PS.err)+'</strong></div>';
+  var hear='<button type="button" class="btn" data-act="sayfull" data-say="'+esc(PS.text)+'">'+ic(I.vol,18)+' Ouvir</button><button type="button" class="btn" data-act="sayslow" data-say="'+esc(PS.text)+'">'+ic(I.vol,18)+' Devagar</button>';
+  if(PS.phase==='q')h+='<div class="row" style="flex-wrap:wrap">'+hear+'<button type="button" class="btn primary vmic" data-act="prec">'+ic(I.mic,18)+' Gravar minha voz</button></div>';
+  else if(PS.phase==='rec')h+=PS.listening?'<p class="small" aria-live="polite">Pode falar. Eu paro quando você terminar.</p><div class="row"><button type="button" class="btn vmic rec" data-act="pstop">'+ic(I.stop,18)+' Parar</button><div class="vlev" aria-hidden="true"><i id="vlev"></i></div></div>':'<p class="small" aria-live="polite">Ligando o microfone…</p>';
+  else if(PS.phase==='tr')h+='<p class="small" aria-live="polite">Entendendo o que você disse…</p>';
+  else{
+    var c=PS.cur,lab=c.ratio>=1&&c.ok?'Perfeito.':c.ok?'Muito bem.':c.ratio>=0.5?'Quase.':'Vamos tentar de novo.';
+    h+='<div class="'+(c.ok?'okbox':'warnbox')+'"><strong>'+lab+'</strong> <span class="num small">'+Math.round(c.ratio*100)+'% das palavras</span>'+
+      (c.said?'<p class="small">Eu entendi: '+c.typed+'</p>':'<p class="small">Não consegui entender.</p>')+
+      (c.ratio<1&&c.said?'<p class="small muted">Frase: '+c.target+' (em destaque, o que não foi entendido)</p>':'')+'</div>'+
+      '<div class="row" style="flex-wrap:wrap">'+hear+'<button type="button" class="btn'+(c.ok?'':' primary')+' vmic" data-act="prec">'+ic(I.mic,18)+' Tentar de novo</button></div>';
+  }
+  e.innerHTML=h;e.hidden=false;
+}
+function psClose(){
+  PS.gen++;
+  try{if(PS.rec)PS.rec.stop();}catch(e){}PS.rec=null;
+  try{if(PS.ctl)PS.ctl.abort();}catch(e){}PS.ctl=null;
+  var had=!!PS.text;PS.text='';PS.phase='q';PS.listening=false;PS.cur=null;PS.err='';
+  if(had){psPaint();vStopSpeak();if(!S.chat&&!S.rp){try{IC.mic.close();}catch(e){}}}
+}
+async function psRec(){
+  if(!PS.text||PS.phase==='rec'||PS.phase==='tr')return;
+  vStopSpeak();vUnlock();
+  var my=++PS.gen,target=PS.text;
+  PS.err='';PS.phase='rec';PS.listening=false;psPaint();
+  try{await IC.mic.open();}catch(e){if(my!==PS.gen)return;PS.phase='q';PS.err=IC.errMsg(e);psPaint();return;}
+  if(my!==PS.gen)return;
+  var rc=IC.mic.record({silenceMs:1200,waitMs:8000,maxMs:15000,onLevel:vLevel});
+  PS.rec=rc;PS.listening=true;psPaint();
+  var r;
+  try{r=await rc.done;}catch(e){PS.rec=null;if(my!==PS.gen)return;PS.phase='q';PS.listening=false;PS.err=IC.errMsg(e);psPaint();return;}
+  PS.rec=null;
+  if(my!==PS.gen)return;
+  PS.listening=false;
+  if(!r.speech||!r.blob){PS.phase='q';PS.err='Não ouvi nada. Toque em Gravar e fale.';psPaint();return;}
+  PS.phase='tr';psPaint();
+  PS.ctl=new AbortController();
+  var text;
+  try{text=await IC.transcribe(r.blob,{signal:PS.ctl.signal});}
+  catch(e){PS.ctl=null;if(my!==PS.gen)return;PS.phase='q';PS.err=e&&e.code==='cancelled'?'':IC.errMsg(e);psPaint();return;}
+  PS.ctl=null;
+  if(my!==PS.gen)return;
+  var cmp=ditCompare(target,text||'');
+  PS.cur={ok:cmp.ratio>=RPASS,ratio:cmp.ratio,target:cmp.target,typed:cmp.typed,said:text||''};
+  PS.phase='a';psPaint();
+}
+function psAct(a,t){
+  switch(a){
+   case 'pmic':
+     if(S.rp)rpHalt();
+     if(PS.text&&PS.text!==t.dataset.say)psClose();
+     PS.text=t.dataset.say;PS.phase='q';PS.cur=null;PS.err='';psPaint();vUnlock();speakRaw(PS.text,0.85);break;
+   case 'prec':psRec();break;
+   case 'pstop':if(PS.rec)PS.rec.stop();break;
+   case 'pclose':psClose();break;
+  }
+}
 
-document.addEventListener('visibilitychange',function(){if(document.hidden){VP.hands=false;if(S.chat)voiceHalt();if(S.rp)rpHalt();}});
+document.addEventListener('visibilitychange',function(){if(document.hidden){VP.hands=false;psClose();if(S.chat)voiceHalt();if(S.rp)rpHalt();}});
 /* ---------- ações ---------- */
 function parseScore(txt,max){var x=parseFloat(String(txt).replace(',','.'));if(isNaN(x)||x<0||x>max)return null;return Math.round(x*10)/10;}
 function act(a,t){
@@ -2594,6 +2674,7 @@ function act(a,t){
    case 'wrnew':{var e1=S.ex;if(e1){e1.res=null;e1.err='';render();window.scrollTo(0,0);}break;}
    case 'trask':S.confirmReset='treino';render();break;
    case 'vrec':case 'vstop':case 'vspeak':case 'vhands':voiceAct(a);break;
+   case 'pmic':case 'prec':case 'pstop':case 'pclose':psAct(a,t);break;
    case 'rpstart':case 'rprec':case 'rpstop':case 'rpskip':case 'rpnext':case 'rpback':rpAct(a,t);break;
    case 'trzero':trainReset();break;
    case 'icsave':{var k=document.getElementById('icKey'),m=document.getElementById('icModel'),q=document.getElementById('icQuick'),o={};
