@@ -147,8 +147,21 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
   var mem={};
   function readCfg(){try{return JSON.parse(lsGet(CFG_KEY)||'{}')||{};}catch(e){return {};}}
   var OLD_DEFAULTS=['gemini-3.8-flash'],OLD_QUICK=['gemini-3.5-flash-lite'],FALLBACK='gemini-3.6-flash';
-  function cfg(){var c=readCfg();var m=c.model,q=c.quick;if(!m||OLD_DEFAULTS.indexOf(m)>=0)m='gemini-3.5-flash';if(!q||OLD_QUICK.indexOf(q)>=0)q='gemini-3.5-flash';return {key:c.key||'',model:m,quick:q};}
-  function saveCfg(o){var c=Object.assign(readCfg(),o);lsSet(CFG_KEY,JSON.stringify(c));}
+  var GROQ_MODEL='llama-3.3-70b-versatile',GROQ_FALLBACK='llama-3.1-8b-instant';
+  function cfg(){
+    var c=readCfg();
+    if(c.provider==='groq')return {provider:'groq',key:c.groqKey||'',model:c.groqModel||GROQ_MODEL,quick:c.groqQuick||GROQ_MODEL};
+    var m=c.model,q=c.quick;if(!m||OLD_DEFAULTS.indexOf(m)>=0)m='gemini-3.5-flash';if(!q||OLD_QUICK.indexOf(q)>=0)q='gemini-3.5-flash';
+    return {provider:'gemini',key:c.key||'',model:m,quick:q};
+  }
+  /* key/model/quick são gravados no serviço que estiver ativo (Gemini ou Groq) */
+  function saveCfg(o){
+    var c=readCfg();
+    if(o.provider==='gemini'||o.provider==='groq')c.provider=o.provider;
+    var g=c.provider==='groq';
+    ['key','model','quick'].forEach(function(k){if(typeof o[k]==='string')c[g?('groq'+k.charAt(0).toUpperCase()+k.slice(1)):k]=o[k];});
+    lsSet(CFG_KEY,JSON.stringify(c));
+  }
   function readDb(){try{return JSON.parse(lsGet(DB_KEY)||'{}')||{};}catch(e){return {};}}
   var listeners=[];
   function snapshot(){var d=readDb();return {docs:Object.keys(d).map(function(id){return {id:id,data:function(){return JSON.parse(JSON.stringify(d[id]));}};})};}
@@ -175,30 +188,53 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
     if(status===400&&/API key|API_KEY/i.test(msg))return err('bad_key',msg);
     if(status===401||status===403)return err('bad_key',msg);
     if(status===404)return err('bad_model',msg);
+    if(status===400&&/model/i.test(msg)&&/(decommission|not exist|not found|does not|no longer)/i.test(msg))return err('bad_model',msg);
+    if(status===400&&/json/i.test(msg))return err('invalid_json',msg);
     if(status===429)return err('rate_limited',msg);
     if(status===500||status===502||status===503||status===504)return err('busy',msg);
     if(status===413)return err('prompt_too_large',msg);
     return err('network',msg||('HTTP '+status));
   }
+  function toOA(input){
+    var out=[];
+    (typeof input==='string'?[{role:'user',content:input}]:input).forEach(function(m){
+      var role=m.role==='assistant'?'assistant':'user',last=out[out.length-1];
+      if(last&&last.role===role)last.content+='\n\n'+m.content;else out.push({role:role,content:String(m.content)});
+    });
+    if(out.length&&out[0].role!=='user')out.unshift({role:'user',content:'(start)'});
+    return out;
+  }
   async function call(input,opts,json){
     var c=cfg();if(!c.key)throw err('no_key');
+    var groq=c.provider==='groq';
     var model=opts&&opts.modelTier==='default'?c.model:c.quick;
     var sig=opts&&opts.signal,stream=!json&&opts&&typeof opts.onText==='function';
-    var headers={'Content-Type':'application/json','x-goog-api-key':c.key};
     var WAIT=(typeof window.IC_RETRY_MS==='number')?window.IC_RETRY_MS:2000,FIRST_BYTE=(typeof window.IC_TIMEOUT_MS==='number')?window.IC_TIMEOUT_MS:40000;
     function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
-    /* uma tentativa: espera no máximo FIRST_BYTE ms pelo início da resposta */
-    async function post(m,think){
+    /* monta o pedido de cada serviço */
+    function build(m,think){
+      if(groq){
+        var msgs=toOA(input);
+        if(json)msgs.unshift({role:'system',content:'Respond only with one valid JSON object, no extra text.'});
+        var gb={model:m,messages:msgs,max_tokens:4096,temperature:0.6};
+        if(json)gb.response_format={type:'json_object'};
+        if(stream)gb.stream=true;
+        return {url:'https://api.groq.com/openai/v1/chat/completions',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.key},body:gb};
+      }
       var body={contents:toGem(input),generationConfig:{maxOutputTokens:8192}};
       /* nos modelos 3.x o "raciocínio" gasta o mesmo limite da resposta: pedimos pouco raciocínio */
       if(think)body.generationConfig.thinkingConfig={thinkingLevel:'low'};
       if(json)body.generationConfig.responseMimeType='application/json';
-      var url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+(stream?':streamGenerateContent?alt=sse':':generateContent');
+      return {url:'https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+(stream?':streamGenerateContent?alt=sse':':generateContent'),headers:{'Content-Type':'application/json','x-goog-api-key':c.key},body:body};
+    }
+    /* uma tentativa: espera no máximo FIRST_BYTE ms pelo início da resposta */
+    async function post(m,think){
+      var rq=build(m,think);
       var ac=new AbortController(),timedOut=false;
       var tm=setTimeout(function(){timedOut=true;ac.abort();},FIRST_BYTE);
       var onAbort=function(){ac.abort();};
       if(sig){if(sig.aborted)ac.abort();else sig.addEventListener('abort',onAbort);}
-      try{return await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body),signal:ac.signal});}
+      try{return await fetch(rq.url,{method:'POST',headers:rq.headers,body:JSON.stringify(rq.body),signal:ac.signal});}
       catch(e){
         if(timedOut)throw err('busy','sem resposta em '+Math.round(FIRST_BYTE/1000)+'s');
         if(e&&e.name==='AbortError')throw err('cancelled');
@@ -206,7 +242,7 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
       }finally{clearTimeout(tm);if(sig)sig.removeEventListener('abort',onAbort);}
     }
     async function attempt(m){
-      var think=/^gemini-3/i.test(m);
+      var think=!groq&&/^gemini-3/i.test(m);
       var r=await post(m,think);
       /* se o modelo não aceitar o ajuste de raciocínio, tenta de novo sem ele */
       if(!r.ok&&r.status===400&&think){
@@ -217,7 +253,7 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
       return r;
     }
     /* 2 tentativas no modelo escolhido; se continuar sobrecarregado, 1 tentativa em cada modelo reserva */
-    var models=[model];[c.quick,FALLBACK].forEach(function(x){if(models.indexOf(x)<0)models.push(x);});
+    var models=[model];[c.quick,groq?GROQ_FALLBACK:FALLBACK].forEach(function(x){if(models.indexOf(x)<0)models.push(x);});
     var resp=null,lastErr=null;
     for(var mi=0;mi<models.length&&!resp;mi++){
       var tries=mi===0?2:1;
@@ -234,14 +270,17 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
       }
     }
     if(!resp)throw lastErr||err('busy');
-    function textOf(j){var cs=j&&j.candidates,p=cs&&cs[0]&&cs[0].content&&cs[0].content.parts;return p?p.map(function(x){return x.text||'';}).join(''):'';}
+    function textOf(j){
+      if(groq){var ch=j&&j.choices&&j.choices[0];if(!ch)return '';var d=ch.delta||ch.message;return d&&d.content?String(d.content):'';}
+      var cs=j&&j.candidates,p=cs&&cs[0]&&cs[0].content&&cs[0].content.parts;return p?p.map(function(x){return x.text||'';}).join(''):'';
+    }
     var text='';
     try{
       if(stream){
         var rd=resp.body.getReader(),dec=new TextDecoder(),buf='';
         for(;;){
-          var r=await rd.read();if(r.done)break;
-          buf+=dec.decode(r.value,{stream:true});
+          var r2=await rd.read();if(r2.done)break;
+          buf+=dec.decode(r2.value,{stream:true});
           var parts=buf.split(/\r?\n\r?\n/);buf=parts.pop();
           parts.forEach(function(ev){
             var ln=ev.split(/\r?\n/).filter(function(l){return l.indexOf('data:')===0;}).map(function(l){return l.slice(5).trim();}).join('');
@@ -451,14 +490,16 @@ function home(){
   return h;
 }
 function icCard(){
-  var c=IC.cfg(),has=IC.hasKey();
+  var c=IC.cfg(),has=IC.hasKey(),g=c.provider==='groq',nm=g?'Groq':'Gemini';
+  var opt=function(v,l){return '<option value="'+v+'"'+(c.provider===v?' selected':'')+'>'+l+'</option>';};
   return '<section class="card"><div class="eyebrow">Ajustes</div><h3>Professor IA</h3>'+
-   '<p class="small muted">'+(has?'Chave salva neste navegador. A conversa, a correção da escrita e as dúvidas usam o Gemini, do Google.':'Falta a chave de API. Sem ela, a conversa, a correção da escrita e as dúvidas não funcionam. O resto do app funciona normalmente.')+'</p>'+
-   '<label class="small" for="icKey">Chave de API do Gemini</label><input type="password" id="icKey" class="wide" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="'+(has?'•••••••• (já salva; cole outra para trocar)':'Cole a chave aqui')+'">'+
+   '<label class="small" for="icProv">Serviço de IA</label><select id="icProv" class="wide">'+opt('gemini','Gemini (Google)')+opt('groq','Groq (Llama)')+'</select>'+
+   '<p class="small muted">'+(has?'Chave salva neste navegador. A conversa, a correção da escrita e as dúvidas usam o '+nm+'.':'Falta a chave de API do '+nm+'. Sem ela, a conversa, a correção da escrita e as dúvidas não funcionam. O resto do app funciona normalmente.')+'</p>'+
+   '<label class="small" for="icKey">Chave de API do '+nm+'</label><input type="password" id="icKey" class="wide" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="'+(has?'•••••••• (já salva; cole outra para trocar)':'Cole a chave aqui')+'">'+
    '<label class="small" for="icModel">Modelo da conversa e do relatório</label><input type="text" id="icModel" class="wide" autocomplete="off" autocapitalize="none" spellcheck="false" value="'+esc(c.model)+'">'+
    '<label class="small" for="icQuick">Modelo rápido (dúvidas e escrita)</label><input type="text" id="icQuick" class="wide" autocomplete="off" autocapitalize="none" spellcheck="false" value="'+esc(c.quick)+'">'+
    '<div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="icsave">Salvar</button><button class="btn" data-act="ictest">Testar conexão</button></div>'+
-   '<p class="small muted">A chave fica só neste navegador. Para gerar uma chave gratuita: aistudio.google.com/apikey.</p>'+
+   '<p class="small muted">A chave fica só neste navegador. Para gerar uma chave gratuita: '+(g?'console.groq.com/keys.':'aistudio.google.com/apikey.')+' Cada serviço guarda a própria chave: trocar o serviço não apaga a outra.</p>'+
    '<div class="eyebrow" style="margin-top:12px">Backup do progresso</div><p class="small muted">O progresso fica salvo neste navegador. Exporte de vez em quando, e importe para levar a outro aparelho.</p>'+
    '<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="icexp">Exportar progresso</button><button class="btn" data-act="icimp">Importar progresso</button></div>'+
    '<input type="file" id="icFile" accept="application/json,.json" hidden></section>';
@@ -2180,7 +2221,9 @@ document.addEventListener('mousedown',function(ev){var t=ev.target.closest&&ev.t
 document.addEventListener('input',function(ev){var k=ev.target&&ev.target.dataset&&ev.target.dataset.draft;if(k)S.drafts[k]=ev.target.value;if(ev.target&&ev.target.id==='wrin'){var c=document.getElementById('wrcount');if(c)c.textContent=wcount(ev.target.value)+' palavras';}});
 document.addEventListener('focusout',function(){setTimeout(function(){if(S.pending)render();},0);});
 document.addEventListener('change',function(ev){
-  var t=ev.target;if(!t||t.id!=='icFile'||!t.files||!t.files[0])return;
+  var t=ev.target;
+  if(t&&t.id==='icProv'){IC.saveCfg({provider:t.value});flash('Serviço: '+(t.value==='groq'?'Groq':'Gemini')+'.');S.pending=false;render();return;}
+  if(!t||t.id!=='icFile'||!t.files||!t.files[0])return;
   var rd=new FileReader();rd.onload=function(){var r=IC.importData(String(rd.result||''));flash(r.ok?'Progresso importado ('+r.n+' itens).':r.msg);t.value='';};rd.onerror=function(){flash('Não consegui ler o arquivo.');};rd.readAsText(t.files[0]);
 });
 document.addEventListener('keydown',function(ev){
