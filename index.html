@@ -131,6 +131,8 @@ input.blank{width:8.5em;max-width:100%;display:inline-block;padding:4px 10px;min
 input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .opt[disabled]{color:var(--ink);cursor:default}
 @media (prefers-reduced-motion:no-preference){.card,.item,.step{transition:border-color .15s}}
+.emo{margin-right:6px;font-size:1.05em}
+details.card>summary{cursor:pointer;display:flex;gap:8px;align-items:center;justify-content:space-between}
 .vbar{display:flex;flex-direction:column;gap:8px}
 .vmic{display:inline-flex;align-items:center;justify-content:center;gap:8px}
 .vmic.rec{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
@@ -841,7 +843,7 @@ var PTW={}; 'que para com uma não são você de da dos das em por mas se ou os 
 var PTH={'Português':1,'Significado':1,'Uso':1,'Quando usar':1,'Sentido':1,'Grau de certeza':1,'Refere-se a':1,'Para':1,'Situação':1,'Notícia':1,'Tipo':1,'Ideia':1,'Tipo de adjetivo':1,'Frase':1,'':1};
 function speechOk(){return !!(window.speechSynthesis&&window.SpeechSynthesisUtterance);}
 function hasPt(s){var t=String(s).replace(/\([^)]*\)/g,' ').toLowerCase();if(/[ãõçáéíóúâêôà]/.test(t))return true;return (t.match(/[a-zà-ú']+/g)||[]).some(function(w){return PTW[w]===1;});}
-function speakText(s){return String(s).replace(/\([^)]*\)/g,' ').replace(/[\[\]*]/g,'').replace(/\+\s*-ing/g,'').replace(/\.\.\.(?=\s*[?.!]|\s*$)/g,'').replace(/\.\.\./g,', ').replace(/([.?!])\s\/\s/g,'$1 ').replace(/\s\/\s/g,', ').replace(/\s+/g,' ').replace(/\s+([,.?!])/g,'$1').replace(/,(\s*,)+/g,',').replace(/,\s*([?.!])/g,'$1').trim();}
+function speakText(s){return String(s).replace(/[\u{1F000}-\u{1FFFF}\u2300-\u23FF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D\u20E3]/gu,'').replace(/\([^)]*\)/g,' ').replace(/[\[\]*]/g,'').replace(/\+\s*-ing/g,'').replace(/\.\.\.(?=\s*[?.!]|\s*$)/g,'').replace(/\.\.\./g,', ').replace(/([.?!])\s\/\s/g,'$1 ').replace(/\s\/\s/g,', ').replace(/\s+/g,' ').replace(/\s+([,.?!])/g,'$1').replace(/,(\s*,)+/g,',').replace(/,\s*([?.!])/g,'$1').trim();}
 function canSay(s){var t=speakText(s);return t.length>1&&/[a-z]/i.test(t)&&!hasPt(s)&&!/^\s*\+|=/.test(s)&&!/^[a-z]+-$/i.test(t)&&!/^-/.test(t)&&!/\sx\s/.test(s);}
 function sayBtn(s){var t=speakText(s);return speechOk()?'<button type="button" class="say" data-act="say" data-say="'+esc(t)+'" aria-label="Ouvir: '+esc(t)+'">'+ic(I.vol,16)+'</button>':'';}
 function pronOf(s){
@@ -880,7 +882,7 @@ function mkSay(s,vocab){
   /* **termo** = significado. *exemplo*  → botões no termo e no exemplo */
   var t=esc(s);
   if(vocab){
-    t=t.replace(/\*\*(.+?)\*\*/g,function(m,x){var rx=x.replace(/&#39;/g,"'").replace(/&amp;/g,'&');return '<strong>'+pw(x,rx)+'</strong>'+sayMaybe(rx);});
+    t=t.replace(/\*\*(.+?)\*\*/g,function(m,x){var rx=x.replace(/&#39;/g,"'").replace(/&amp;/g,'&');return emoW(rx)+'<strong>'+pw(x,rx)+'</strong>'+sayMaybe(rx);});
     t=t.replace(/\*(.+?)\*/g,function(m,x){var r=x.replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&amp;/g,'&');return '<em>'+(r.length>=6?pw(x,r):x)+'</em>'+(r.length>=6?sayMaybe(r):'');});
     return t;
   }
@@ -893,7 +895,7 @@ function sayItems(txt){
   if(items.length<2||items.some(function(it){return hasPt(it)||/[·→]/.test(it);}))return null;
   return '<p><strong>'+esc(m[1])+'</strong> '+items.map(function(it){
     var w=it.replace(/\s*\([^)]*\)\s*$/,'').trim(),par=(/\(([^)]*)\)\s*$/.exec(it)||[])[1];
-    return pw(esc(w),w)+sayMaybe(w)+(par?' <span class="muted">('+esc(par)+')</span>':'');
+    return emoW(w)+pw(esc(w),w)+sayMaybe(w)+(par?' <span class="muted">('+esc(par)+')</span>':'');
   }).join(', ')+'.</p>';
 }
 function aulaHtml(b,L){
@@ -905,7 +907,7 @@ function aulaHtml(b,L){
     if(x.t==='table'){
       var hd=x.head;
       return '<div class="tbl"><table><thead><tr>'+hd.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>'+
-        x.rows.map(function(r){return '<tr>'+r.map(function(c,k){var ab=PTH[hd[k]]===1?'':sayMaybe(c);var ec=PTH[hd[k]]===1?esc(c):pw(esc(c),c);return k===0?'<th scope="row">'+ec+ab+'</th>':'<td>'+ec+ab+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div>';
+        x.rows.map(function(r){return '<tr>'+r.map(function(c,k){var ab=PTH[hd[k]]===1?'':sayMaybe(c);var ec=PTH[hd[k]]===1?esc(c):pw(esc(vo?emoCell(c):c),c);return k===0?'<th scope="row">'+ec+ab+'</th>':'<td>'+ec+ab+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div>';
     }
     if(x.t==='tip')return '<div class="tipbox"><strong>'+esc(x.label)+'</strong><p>'+mk(x.text)+'</p></div>';
     return '';
@@ -1486,7 +1488,7 @@ function vcBegin(ids){
   var s=S.vc;if(!ids.length){flash('Nenhuma palavra para rever agora.');return;}
   s.qs=vcMake(ids);s.i=0;s.sel=null;s.ok=0;s.miss=[];s.done=false;render();window.scrollTo(0,0);
 }
-function vcGo(){var s=S.vc;if(s)vcBegin(s.u?vcPickUnit(s.u):vcPickRev());}
+function vcGo(){var s=S.vc;if(s)vcBegin(s.u===-1?vcPickCls(s.cls):s.u?vcPickUnit(s.u):vcPickRev());}
 function vcRev(from){S.vc={from:from==null?null:from,u:0,qs:null};vcBegin(vcPickRev());}
 function vcBack(){S.vc=null;try{window.speechSynthesis.cancel();}catch(e){}render();window.scrollTo(0,0);}
 function vcAnswer(k){
@@ -1516,8 +1518,8 @@ function vcClear(n){
 }
 function vcBackLabel(s){return s.from==='rev'?' Revisão':s.from!=null?' Unidade '+dn(s.from):' Treino';}
 function vcBar(a,b){return '<div style="height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0"><div style="height:100%;width:'+Math.round(100*a/Math.max(1,b))+'%;background:var(--accent)"></div></div>';}
-function vcScreen(){var s=S.vc;return !s.qs?vcList():s.done?vcDone():vcQuiz();}
-function vcList(){
+function vcScreen(){var s=S.vc;return !s.qs?(s.u===-1?vcClsList():vcList()):s.done?vcDone():vcQuiz();}
+function vcListOld(){
   var s=S.vc,u=s.u,n=vcCount(u),L=vcLearned(u),U=UNITS[u-1],w=vocDoc().w,items=VOC[u-1];
   var h='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">Unidade '+dn(u)+' · Palavras</div><h2>'+n+' palavras: '+esc(U.title)+'</h2></header>';
   h+='<section class="card"><p class="small"><strong class="num">'+L+' de '+n+'</strong> aprendidas. Uma palavra conta como aprendida depois de 3 acertos em dias diferentes. As que você erra voltam no dia seguinte.</p>'+vcBar(L,n)+'<button class="btn primary" data-act="vcgo">Praticar 10 palavras</button></section>';
@@ -1529,9 +1531,9 @@ function vcList(){
 }
 function vcQuiz(){
   var s=S.vc,q=s.qs[s.i],wd=vcWord(q.id),h='';
-  h+='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">'+(s.u?'Unidade '+dn(s.u)+' · ':'Revisão · ')+'Palavras</div><h2 class="num">Pergunta '+(s.i+1)+' de '+s.qs.length+'</h2>'+vcBar(s.i+(s.sel!=null?1:0),s.qs.length)+'</header>';
+  h+='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">'+vcHdr(s)+'Palavras</div><h2 class="num">Pergunta '+(s.i+1)+' de '+s.qs.length+'</h2>'+vcBar(s.i+(s.sel!=null?1:0),s.qs.length)+'</header>';
   var prompt;
-  if(q.kind==='en')prompt='<p class="small muted">O que significa?</p><p style="font-size:22px;margin:6px 0"><strong>'+esc(wd.w)+'</strong> '+sayBtn(wd.w)+'</p>';
+  if(q.kind==='en')prompt='<p class="small muted">O que significa?</p><p style="font-size:22px;margin:6px 0">'+emoW(wd.w)+'<strong>'+esc(wd.w)+'</strong> '+sayBtn(wd.w)+'</p>';
   else if(q.kind==='pt')prompt='<p class="small muted">Como se diz em inglês?</p><p style="font-size:22px;margin:6px 0"><strong>'+esc(wd.pt)+'</strong></p>';
   else prompt='<p class="small muted">Complete a frase:</p><p style="font-size:18px;margin:6px 0">'+esc(wd.ex.replace(vcRe(wd.w),'_____'))+'</p><p class="small muted">Dica: '+esc(wd.pt)+'</p>';
   h+='<section class="card">'+prompt+'<div class="list" style="margin-top:10px">'+q.o.map(function(o,k){
@@ -1540,15 +1542,15 @@ function vcQuiz(){
   }).join('')+'</div></section>';
   if(s.sel!=null){
     var okk=s.sel===q.a;
-    h+='<div class="'+(okk?'okbox':'warnbox')+'"><strong>'+(okk?'Certo!':'Não foi dessa vez.')+'</strong><div><strong>'+esc(wd.w)+'</strong> = '+esc(wd.pt)+'</div><div class="row" style="align-items:center"><span class="grow small"><em>'+esc(wd.ex)+'</em></span>'+sayBtnM(wd.ex)+'</div></div>';
+    h+='<div class="'+(okk?'okbox':'warnbox')+'"><strong>'+(okk?'Certo!':'Não foi dessa vez.')+'</strong><div>'+emoW(wd.w)+'<strong>'+esc(wd.w)+'</strong> = '+esc(wd.pt)+'</div><div class="row" style="align-items:center"><span class="grow small"><em>'+esc(wd.ex)+'</em></span>'+sayBtnM(wd.ex)+'</div></div>';
     h+='<button class="btn primary" data-act="vcnext">'+(s.i+1>=s.qs.length?'Ver resultado':'Próxima')+'</button>';
   }
   return h;
 }
 function vcDone(){
-  var s=S.vc,n=s.qs.length,h='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">'+(s.u?'Unidade '+dn(s.u)+' · ':'Revisão · ')+'Palavras</div><h2>Resultado</h2></header>';
+  var s=S.vc,n=s.qs.length,h='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">'+vcHdr(s)+'Palavras</div><h2>Resultado</h2></header>';
   h+='<div class="'+(s.ok>=Math.ceil(n*0.8)?'okbox':'warnbox')+'"><strong class="num">'+s.ok+' de '+n+' certas.</strong>'+(s.miss.length?'<p class="small">As erradas voltam amanhã.</p>':'')+'</div>';
-  if(s.miss.length)h+='<section class="card"><h3>Para fixar</h3><div class="list">'+s.miss.map(function(id){var x=vcWord(id);return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(x.w)+'</strong> = '+esc(x.pt)+'</span>'+sayBtnM(x.w)+'</div>';}).join('')+'</div></section>';
+  if(s.miss.length)h+='<section class="card"><h3>Para fixar</h3><div class="list">'+s.miss.map(function(id){var x=vcWord(id);return '<div class="row" style="align-items:center"><span class="grow">'+emoW(x.w)+'<strong>'+esc(x.w)+'</strong> = '+esc(x.pt)+'</span>'+sayBtnM(x.w)+'</div>';}).join('')+'</div></section>';
   var more=s.u?true:vcDueList().length>0;
   h+='<div class="row" style="flex-wrap:wrap">'+(more?'<button class="btn" data-act="vcagain">'+(s.u?'Praticar mais 10':'Rever mais palavras')+'</button>':'')+'<button class="btn ghost" data-act="vcback">Voltar</button></div>';
   return h;
@@ -1564,7 +1566,7 @@ function vcMenu(){
   for(var k=1;k<=VOC.length;k++){if(!vcCount(k))continue;var d=vcLearned(k)>=vcGoal(k);
     h+='<button class="chip" data-act="vcopen" data-u="'+k+'" aria-label="Palavras da unidade '+dn(k)+', '+vcLearned(k)+' de '+vcCount(k)+' aprendidas" style="min-width:44px;min-height:44px;justify-content:center;border:1px solid var(--line);'+(d?'background:var(--accent-soft);':'')+'">'+dn(k)+(d?' ✓':'')+'</button>';}
   h+='</div>'+(due.length?'<div style="margin-top:12px"><button class="btn primary" data-act="vcrev">Rever '+due.length+' vencida'+(due.length>1?'s':'')+'</button></div>':'')+'</section>';
-  return h;
+  return h+vcClsMenu();
 }
 function vcUnitRow(n){
   if(!VOC[n-1]||!VOC[n-1].length)return '';
@@ -2595,6 +2597,81 @@ function psAct(a,t){
   }
 }
 
+/* ---------- vocabulário: classes (verbo, substantivo, adjetivo, outros) e emojis ---------- */
+var EMO={"recipe": "📖", "chop": "🔪", "stir": "🥄", "pour": "🥛", "peel": "🥔", "slice": "🍞", "simmer": "🍲", "leftovers": "🥡", "takeaway": "🥡", "snack": "🍿", "tasty": "😋", "spicy": "🌶️", "bitter": "😖", "sweet tooth": "🍰", "fresh": "🥬", "raw": "🥩", "vegetarian": "🥗", "diet": "🥗", "portion": "🍽️", "bill": "🧾", "tip": "💵", "order": "📝", "book a table": "🍽️", "starter": "🥣", "main course": "🍝", "dessert": "🍰", "waiter": "👨‍🍳", "grocery shopping": "🛒", "fast food": "🍔", "allergic to": "🤧", "relative": "👪", "grandparents": "👵", "cousin": "🧑‍🤝‍🧑", "nephew": "👦", "niece": "👧", "twin": "👯", "bring up": "👶", "grow up": "🌱", "look after": "🤲", "generous": "🎁", "selfish": "🙄", "friendly": "😊", "outgoing": "🥳", "honest": "🤝", "moody": "😤", "cheerful": "😄", "talkative": "🗣️", "invite": "💌", "get together": "🤗", "salary": "💰", "wage": "💰", "income": "💰", "budget": "📊", "cash": "💵", "debt": "💸", "loan": "🏦", "bank account": "🏦", "withdraw": "🏧", "atm": "🏧", "cheap": "🏷️", "expensive": "💎", "wealthy": "🤑", "broke": "😞", "tax": "🧾", "pension": "👴", "profit": "📈", "loss": "📉", "currency": "💱", "exchange rate": "💱", "coin": "🪙", "price": "🏷️", "get a discount on": "🏷️", "exhausted": "😫", "amazed": "😲", "furious": "😡", "delighted": "😁", "terrified": "😱", "starving": "🍽️", "freezing": "🥶", "thrilled": "🤩", "disappointed": "😞", "nervous": "😰", "relieved": "😌", "jealous": "😒", "lonely": "🥺", "homesick": "🏠", "ashamed": "😳", "proud": "😊", "move house": "📦", "get married": "💒", "get divorced": "💔", "have a baby": "👶", "retire": "🏖️", "graduate": "🎓", "start a business": "🏪", "give up": "🏳️", "achievement": "🏆", "reunion": "🤗", "journey": "🧭", "trip": "🧳", "passenger": "🧍", "driver": "🚗", "driving licence": "🆔", "road": "🛣️", "motorway": "🛣️", "roundabout": "🔄", "traffic lights": "🚦", "junction": "🔀", "pavement": "🚶", "crossing": "🚸", "parking space": "🅿️", "petrol": "⛽", "fuel": "⛽", "speed limit": "🚫", "brake": "🛑", "break down": "🛠️", "run out of petrol": "⛽", "fill up": "⛽", "take off": "🛫", "land": "🛬", "board": "🚌", "check in": "🛂", "luggage": "🧳", "suitcase": "🧳", "passport": "🛂", "departure": "🛫", "arrival": "🛬", "gate": "🚪", "timetable": "🗓️", "crowded": "👥", "population": "👥", "society": "🌐", "culture": "🎎", "tradition": "🎎", "citizen": "🆔", "foreigner": "🌍", "neighbour": "🏘️", "nationality": "🏳️", "accent": "🗣️", "native speaker": "🗣️", "rural": "🌾", "urban": "🏙️", "old-fashioned": "📻", "immigrant": "🧳", "law": "⚖️", "forbidden": "🚫", "ban": "🚫", "permission": "✅", "queue": "🧍", "jump the queue": "🏃", "dress code": "👔", "shake hands": "🤝", "take off your shoes": "👟", "turn off your phone": "📵", "interrupt": "✋", "make a noise": "🔊", "keep quiet": "🤫", "punish": "⛓️", "offensive": "😠", "rude": "😠", "polite": "🙂", "apologise": "🙏", "talent": "🌟", "skill": "🛠️", "fluent": "🗣️", "ride": "🚴", "juggle": "🤹", "draw": "✏️", "paint": "🎨", "repair": "🔧", "beginner": "🔰", "expert": "🧠", "lesson": "📚", "tutor": "👩‍🏫", "progress": "📈", "strength": "💪", "weakness": "📉", "anxious": "😟", "confident": "😎", "tournament": "🏆", "championship": "🏆", "league": "🏟️", "final": "🥇", "fan": "📣", "supporter": "📣", "stadium": "🏟️", "athlete": "🏃", "goal": "⚽", "penalty": "🥅", "injury": "🤕", "injured": "🤕", "warm up": "🤸", "work out": "🏋️", "cheer": "📣", "kick": "🦶", "throw": "🤾", "catch": "🧤", "jog": "🏃", "exciting": "🤩", "unbelievable": "😲", "defeat": "😔", "break up with": "💔", "split up": "💔", "fall in love with": "😍", "have a crush on": "😍", "wedding": "💒", "honeymoon": "🌴", "couple": "💑", "date": "🌹", "engaged": "💍", "fiancé": "💍", "partner": "🧑‍🤝‍🧑", "flatmate": "🏠", "secret": "🤫", "promise": "🤞", "betray": "🗡️", "forgive": "🕊️", "gossip": "🗣️", "get back together": "💞", "director": "🎬", "producer": "🎞️", "leading role": "🎭", "supporting role": "🎭", "star": "⭐", "script": "📜", "genre": "🎞️", "comedy": "😂", "thriller": "😰", "horror": "👻", "documentary": "🎥", "animation": "🖍️", "science fiction": "🚀", "blockbuster": "🍿", "box office": "🎟️", "premiere": "🎉", "screen": "📺", "audience": "👥", "critic": "📝", "rating": "⭐", "award": "🏆", "nominate": "🏅", "hilarious": "🤣", "scary": "😱", "dull": "😴", "moving": "🥲", "ending": "🏁", "spoiler": "🤐", "recommend": "👍", "stream": "📶", "binge-watch": "📺", "series": "📺", "episode": "📺", "season": "🗓️", "channel": "📡", "cinema ticket": "🎟️", "height": "📏", "tall": "🧍", "short": "📏", "muscular": "💪", "overweight": "⚖️", "thin": "🪶", "skinny": "🪶", "attractive": "😍", "handsome": "🤵", "pretty": "🌸", "elegant": "👗", "neat": "✨", "blonde": "👱", "ponytail": "💇", "dyed": "🎨", "shaved": "🪒", "glasses": "👓", "contact lenses": "👁️", "earring": "💎", "necklace": "📿", "bracelet": "📿", "jacket": "🧥", "jumper": "🧶", "tie": "👔", "suit": "🤵", "trainers": "👟", "scarf": "🧣", "look tired": "🥱", "university": "🎓", "college": "🏫", "primary school": "🏫", "secondary school": "🏫", "pupil": "🧒", "lecturer": "👨‍🏫", "classmate": "🧑‍🎓", "campus": "🏫", "library": "📚", "syllabus": "📋", "homework": "📝", "essay": "✍️", "presentation": "📊", "research": "🔬", "thesis": "📄", "attend": "🏫", "enrol": "📝", "drop out": "🚪", "revise": "📖", "study for": "📖", "certificate": "📜", "diploma": "🎓", "master's degree": "🎓", "phd": "🎓", "application form": "📝", "distance learning": "💻", "evening class": "🌙", "knowledge": "🧠", "get a degree": "🎓", "take an exam": "📝", "fees": "💳", "neighbourhood": "🏘️", "suburb": "🏡", "city centre": "🏙️", "village": "🏘️", "garden": "🌳", "balcony": "🪴", "garage": "🚗", "ground floor": "🏢", "lift": "🛗", "stairs": "🪜", "corridor": "🚪", "spare room": "🛏️", "cupboard": "🗄️", "shelf": "📚", "armchair": "🛋️", "carpet": "🧶", "curtains": "🪟", "fridge": "🧊", "washing machine": "🧺", "dishwasher": "🍽️", "oven": "♨️", "cooker": "🍳", "heating": "🔥", "air conditioning": "❄️", "move in": "📦", "move out": "📦", "lease": "📄", "mortgage": "🏦", "broken": "🔨", "noisy": "🔊", "spacious": "🏠", "cosy": "🛋️", "tidy up": "🧹", "do the washing-up": "🧽", "do the housework": "🧹", "decorate": "🖼️", "furniture": "🪑", "bills": "🧾", "plumber": "🚰", "electrician": "💡", "career": "📈", "profession": "👔", "boss": "👔", "manager": "👔", "staff": "👥", "department": "🏢", "workplace": "🏢", "company": "🏢", "client": "🤝", "meeting": "🗓️", "workload": "📚", "job interview": "🤝", "vacancy": "📢", "candidate": "🙋", "reference": "📝", "cover letter": "✉️", "recruit": "🔎", "unemployed": "🚫", "be laid off": "📦", "get the sack": "📦", "work from home": "🏠", "freelance": "💻", "self-employed": "💼", "run a business": "🏪", "stressful": "😵", "training": "🎓", "team": "👥", "coworker": "🧑‍💼", "pay": "💵", "customer": "🛍️", "shop assistant": "🧑‍💼", "browse": "👀", "try on": "👗", "size": "📏", "pay by card": "💳", "contactless": "📲", "trolley": "🛒", "basket": "🧺", "bag": "👜", "shopping centre": "🏬", "market": "🏪", "department store": "🏬", "brand": "🏷️", "label": "🏷️", "quality": "✅", "faulty": "⚠️", "damaged": "💥", "return": "↩️", "complain": "😠", "complaint": "📣", "guarantee": "🛡️", "sold out": "🚫", "order online": "💻", "package": "📦", "shipping cost": "🚚", "special offer": "🎁", "the sales": "🏷️", "price tag": "🏷️", "fake": "🎭", "second-hand": "♻️", "loyalty card": "💳", "window shopping": "🪟", "fortune": "🍀", "bad luck": "🌧️", "good luck": "🍀", "knock on wood": "🪵", "superstition": "🔮", "lottery": "🎟️", "jackpot": "🎰", "gamble": "🎲", "bet": "🎲", "risk": "⚠️", "take a risk": "⚠️", "odds": "🎲", "lucky charm": "🍀", "narrow escape": "😅", "regret": "😔", "wish": "🌠", "opportunity": "🚪", "grab": "🤲", "success": "🏆", "failure": "❌", "disaster": "💥", "survive": "🛟", "escape": "🏃", "avoid": "🚧", "unexpected": "🎁", "device": "📱", "laptop": "💻", "tablet": "📱", "keyboard": "⌨️", "mouse": "🖱️", "headphones": "🎧", "speaker": "🔊", "plug in": "🔌", "unplug": "🔌", "switch on": "🔛", "switch off": "📴", "restart": "🔄", "wi-fi": "📶", "connection": "🔗", "signal": "📶", "network": "🌐", "online": "🟢", "offline": "⚫", "website": "🌐", "browser": "🧭", "search engine": "🔎", "link": "🔗", "click": "🖱️", "scroll": "📜", "type": "⌨️", "app": "📲", "software": "💽", "file": "📄", "folder": "📁", "attachment": "📎", "username": "👤", "account": "👤", "sign up": "📝", "hack": "🕵️", "virus": "🦠", "security": "🔒", "privacy": "🔒", "data": "📊", "storage": "💾", "screenshot": "📸", "admire": "🤩", "inspiration": "💡", "inspiring": "✨", "hero": "🦸", "idol": "🌟", "legend": "🏛️", "pioneer": "🧭", "founder": "🏗️", "leader": "🧑‍💼", "famous": "🌟", "brave": "🦁", "courageous": "🦁", "humble": "🙏", "modest": "🙏", "wise": "🦉", "determined": "💪", "charity": "🎗️", "volunteer": "🙋", "donate": "🎁", "overcome": "⛰️", "obstacle": "🚧", "biography": "📖", "role model": "🌟", "crime": "🚨", "criminal": "🥷", "police officer": "👮", "detective": "🕵️", "investigate": "🔎", "investigation": "🔎", "arrest": "🚔", "accuse": "👉", "guilty": "⚖️", "innocent": "😇", "court": "🏛️", "jury": "🧑‍⚖️", "trial": "⚖️", "lawyer": "🧑‍⚖️", "prison": "⛓️", "clue": "🔎", "fingerprint": "🖐️", "cctv": "📹", "alarm": "🚨", "lock": "🔒", "break into": "🪟", "run away": "🏃", "chase": "🏃", "kidnap": "😨", "fraud": "🕵️", "scam": "🎣", "pickpocket": "👛", "vandalism": "🎨", "report a crime": "📞", "mystery": "❓", "solve": "🧩", "suspicious": "🤨", "dangerous": "☠️", "safe": "🛡️", "habitat": "🌳", "species": "🦋", "extinction": "🦤", "deforestation": "🪓", "recycle": "♻️", "reduce": "⬇️", "conserve": "🌿", "protect": "🛡️", "pollute": "🏭", "global warming": "🌡️", "rising sea levels": "🌊", "heatwave": "🥵", "wildfire": "🔥", "natural resources": "💧", "solar panel": "☀️", "wind turbine": "🌬️", "electric vehicle": "🔌", "public transport": "🚌", "single-use plastic": "🥤", "compost": "🍂", "eco-friendly": "🌱", "biodegradable": "🍃", "renewable": "♻️", "sustainability": "🌍", "illness": "🤒", "disease": "🦠", "cure": "💊", "remedy": "🍵", "dose": "💊", "appointment": "📅", "blood pressure": "🩺", "fever": "🌡️", "headache": "🤕", "dizzy": "😵", "healthy": "🥦", "chronic": "⏳", "recover": "💪", "get enough sleep": "😴", "mental health": "🧠", "therapy": "🛋️", "insurance": "📄", "well-being": "🧘", "vaccine": "💉", "diagnose": "🩺", "immune system": "🛡️", "lose weight": "⚖️", "interest rate": "📈", "saving": "🐷", "discount": "🏷️", "bargain": "🏷️", "fee": "💳", "receipt": "🧾", "supplier": "🚚", "offer": "🤲", "agree on": "🤝", "compromise": "🤝", "meet halfway": "🤝", "terms and conditions": "📄", "fixed price": "🏷️", "down payment": "💵", "newspaper": "📰", "journalist": "🎤", "report": "📄", "deny": "🙅", "admit": "🙋", "evidence": "🔎", "opinion": "💬", "debate": "🗣️", "controversial": "🔥", "accurate": "🎯", "exaggerate": "📢", "spread": "📡", "fact-check": "🔎", "social media": "📱", "influencer": "🤳", "subscribe to": "🔔", "publish": "📰", "headline news": "📰", "flight": "✈️", "boarding pass": "🎫", "visa": "🛂", "check-in": "🛂", "guidebook": "📘", "landmark": "🗽", "scenery": "🏞️", "destination": "📍", "book": "🗓️", "cancel": "❌", "compensation": "💶", "peaceful": "🕊️", "check out": "🧳", "look around": "👀", "tour guide": "🚩", "sightseeing tour": "🚌", "hostel": "🛏️", "fare": "🎟️", "refund": "💶", "stopover": "🛬", "reception": "🛎️", "front desk": "🛎️", "breathtaking": "😍", "pack": "🧳", "technology": "⚙️", "discovery": "🔬", "experiment": "🧪", "researcher": "🔬", "database": "🗄️", "password": "🔑", "battery": "🔋", "charger": "🔌", "install": "⬇️", "download": "⬇️", "upload": "⬆️", "log in": "🔑", "log out": "🚪", "back up": "💾", "shut down": "⏻", "turn on": "🔛", "set up": "🛠️", "user-friendly": "👍", "outdated": "📼", "advanced": "🚀", "gadget": "📱", "wireless": "📡", "cloud": "☁️", "hacker": "🕵️", "high-tech": "🤖", "cutting-edge": "🚀", "state-of-the-art": "🚀", "malfunction": "⚠️", "employee": "🧑‍💼", "employer": "👔", "colleague": "🧑‍🤝‍🧑", "improvement": "📈", "praise": "👏", "criticise": "👎", "achieve": "🏆", "meet a deadline": "⏰", "hand in": "📥", "fall behind": "🐢", "catch up": "🏃", "efficient": "⚡", "turnover": "🔁", "pay rise": "💰", "schedule": "🗓️", "priority": "1️⃣", "delegate": "📤", "under pressure": "😓", "burn out": "🔥", "run a meeting": "🗓️", "artist": "🎨", "painting": "🖼️", "museum": "🏛️", "concert": "🎤", "performance": "🎭", "stage": "🎭", "cast": "🎬", "scene": "🎬", "character": "🧑‍🎤", "novel": "📕", "poem": "📜", "author": "✍️", "storyline": "📖", "perform": "🎭", "boring": "😴", "drama": "🎭", "subtitles": "💬", "trailer": "🎞️", "bestseller": "📚", "government": "🏛️", "punishment": "⚖️", "freedom": "🕊️", "homeless": "🏚️", "fair": "⚖️", "unfair": "🚫", "equal": "🟰", "protest": "✊", "vote": "🗳️", "raise awareness": "📢", "elderly": "👴", "disabled": "♿", "refugee": "🧳", "welfare": "🤲", "minimum wage": "💵", "corruption": "💸", "human rights": "🕊️", "democracy": "🗳️", "campaign": "📢", "qualification": "📜", "degree": "🎓", "effort": "💪", "determination": "💪", "dedication": "💪", "move up": "📈", "get ahead": "🚀", "apply for": "📝", "well-paid": "💰", "promotion prospects": "📈", "work-life balance": "⚖️", "track record": "📈", "resume": "📄", "shortlist": "📋", "hire": "🤝", "fire": "📦", "fulfil": "✅", "set a goal": "🎯", "keep going": "🏃", "rise to the challenge": "🧗", "come a long way": "🛤️", "take the initiative": "🚀", "dairy": "🥛", "fish and seafood": "🐟", "fruit": "🍎", "meat": "🥩", "vegetables": "🥕", "baked": "🥖", "baked potatoes": "🥔", "beef": "🥩", "boiled": "♨️", "boiled potatoes": "🥔", "butter": "🧈", "cabbage": "🥬", "canned": "🥫", "cheese": "🧀", "cherries": "🍒", "chicken": "🍗", "cucumber": "🥒", "eat out": "🍽️", "fried": "🍳", "fried eggs": "🍳", "frozen": "🧊", "grapes": "🍇", "green beans": "🫘", "grilled": "🔥", "grilled chicken": "🍗", "lamb": "🐑", "mango": "🥭", "milk": "🥛", "onion": "🧅", "peach": "🍑", "pear": "🍐", "pepper": "🫑", "pork": "🥓", "roast beef": "🥩", "salmon": "🍣", "shrimp": "🍤", "squid": "🦑", "steamed vegetables": "🥦", "tuna": "🐟", "yogurt": "🥣", "extended family": "👪", "immediate family": "👨‍👩‍👧", "only child": "🧒", "half-sister": "👧", "funny": "😂", "lazy": "🛋️", "quiet": "🤫", "serious": "😐", "shy": "🫣", "sibling": "👫", "hard-working": "💪", "earn": "💰", "invest": "📈", "lend": "🤲", "borrow": "🙏", "save": "🐷", "waste": "🗑️", "win": "🏆", "owe": "💸", "angry": "😠", "happy": "😀", "hungry": "🍽️", "scared": "😨", "tired": "😴", "cold": "🥶", "big": "🐘", "enormous": "🐘", "quit smoking": "🚭", "surprised": "😲", "delay": "⏳", "catch a bus": "🚌", "commute": "🚇", "miss a bus": "🏃", "platform": "🚉", "rush hour": "🚦", "ticket": "🎫", "traffic jam": "🚗", "worried about": "😟", "proud of": "😊", "afraid of": "😨", "married to": "💍", "wait for": "⏳", "listen to": "👂", "call back": "📞", "hang up": "📵", "hold on": "✋", "leave a message": "💬", "pick up": "📞", "wrong number": "📞", "annoying": "😤", "annoyed": "😤", "bored": "🥱", "confused": "😕", "confusing": "😕", "embarrassed": "😳", "embarrassing": "😳", "excited": "🤩", "interested": "🤔", "interesting": "🤔", "surprising": "😲", "tiring": "😩", "coach": "🧑‍🏫", "compete": "🏁", "do yoga": "🧘", "do karate": "🥋", "do gymnastics": "🤸", "go cycling": "🚴", "go running": "🏃", "go swimming": "🏊", "lose": "😞", "match": "⚽", "opponent": "🥊", "pitch": "🏟️", "play football": "⚽", "play tennis": "🎾", "referee": "🧑‍⚖️", "score": "🥅", "train": "🏋️", "beat": "🥇", "best friend": "👯", "become friends": "🤝", "get engaged": "💍", "have an argument with": "🗯️", "make up": "🤝", "ex": "💔", "cheek": "😊", "chest": "🫁", "chin": "🧔", "elbow": "💪", "eyebrow": "🤨", "forehead": "🙆", "freckles": "😊", "shoulder": "🤷", "thumb": "👍", "waist": "👖", "wrist": "⌚", "wrinkles": "👵", "bald": "👨‍🦲", "slim": "🧍", "plump": "🐻", "assignment": "📝", "course": "📚", "deadline": "⏰", "lecture": "👨‍🏫", "scholarship": "🎓", "subject": "📚", "tuition fees": "💳", "damp": "💧", "deposit": "💵", "detached house": "🏡", "furnished": "🛋️", "leak": "💧", "rent": "🔑", "semi-detached house": "🏘️", "sofa": "🛋️", "tenant": "🧑‍💼", "view": "🌄", "wardrobe": "🚪", "promotion": "📈", "skills": "🛠️", "qualifications": "📜", "checkout": "🛒", "delivery": "🚚", "exchange": "🔁", "fitting room": "👗", "on sale": "🏷️", "out of stock": "🚫", "voucher": "🎟️", "chance": "🎲", "coincidence": "🤯", "unfortunately": "😕", "crash": "💥", "delete": "🗑️", "freeze": "🥶", "notification": "🔔", "reset": "🔄", "update": "⬆️", "t-shirt": "👕", "airport": "🛫", "bedroom": "🛏️", "bus stop": "🚏", "credit card": "💳", "living room": "🛋️", "mother-in-law": "👵", "toothbrush": "🪥", "traffic light": "🚦", "inspire": "💡", "talented": "🌟", "burglar": "🥷", "burglary": "🏚️", "fine": "🧾", "mug": "🥷", "mugger": "🥷", "mugging": "🥷", "murder": "🔪", "murderer": "🔪", "police station": "🚓", "rob": "🥷", "robber": "🥷", "robbery": "🥷", "steal": "🫳", "suspect": "🕵️", "theft": "🫳", "thief": "🥷", "victim": "😢", "witness": "👀", "carbon footprint": "👣", "climate change": "🌍", "emissions": "🏭", "endangered": "🐼", "fossil fuels": "🛢️", "greenhouse gases": "🏭", "landfill": "🗑️", "pollution": "🏭", "renewable energy": "☀️", "sustainable": "🌱", "allergic": "🤧", "burnout": "🔥", "check-up": "🩺", "nutrition": "🥗", "prescription": "📝", "side effect": "💊", "stress": "😰", "symptom": "🌡️", "treatment": "💊", "contract": "📄", "deal": "🤝", "expense": "💸", "invoice": "🧾", "negotiate": "🤝", "overcharge": "💸", "revenue": "💰", "bias": "⚖️", "breaking news": "🚨", "censorship": "🚫", "coverage": "📺", "fake news": "📰", "go viral": "🔥", "headline": "📰", "reliable": "✅", "rumour": "🗣️", "source": "🔗", "the front page": "📰", "accommodation": "🏨", "culture shock": "😵", "customs": "🛃", "go sightseeing": "📸", "heritage": "🏛️", "hospitality": "🤝", "itinerary": "🗺️", "jet lag": "😴", "sightseeing": "📸", "souvenir": "🎁", "tourist trap": "🪤", "travel": "✈️", "algorithm": "🧮", "artificial intelligence": "🤖", "breakthrough": "💡", "cybersecurity": "🔒", "prototype": "🛠️", "collaborate": "🤝", "feedback": "💬", "minutes": "📝", "overtime": "🕘", "resign": "📤", "team player": "🤝", "agenda": "📋", "appraisal": "📋", "exhibition": "🖼️", "gallery": "🖼️", "masterpiece": "🖼️", "sculpture": "🗿", "plot": "📖", "review": "⭐", "sequel": "🎞️", "soundtrack": "🎶", "special effects": "✨", "gripping": "😮", "community": "🏘️", "discrimination": "🚫", "justice": "⚖️", "poverty": "🏚️", "responsibility": "📌", "rights": "✊", "tolerance": "🕊️", "fight": "🥊", "career path": "🛤️", "challenge": "🧗", "mentor": "🧑‍🏫", "motivated": "🔥", "potential": "🌱", "resilience": "💪", "self-confidence": "😎", "setback": "⏪"};
+function emo(w){var k=String(w).toLowerCase().replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim();return EMO[k]||'';}
+function emoW(w){var e=emo(w);return e?'<span class="emo" aria-hidden="true">'+e+'</span>':'';}
+function emoCell(c){
+  return String(c).split(/(,(?![^(]*\)))/).map(function(p){
+    if(p===',')return p;
+    var m=/^(\s*)([A-Za-z' -]+?)(\s*(?:\(.*\))?\s*)$/.exec(p);if(!m)return p;
+    var e=emo(m[2]);return e?m[1]+e+' '+m[2]+m[3]:p;
+  }).join('');
+}
+var VCL=[{k:'v',t:'Verbos'},{k:'n',t:'Substantivos'},{k:'adj',t:'Adjetivos'},{k:'o',t:'Outros'}];
+function vcClsOf(p){return p==='v'||p==='phr'?'v':p==='n'?'n':p==='adj'?'adj':'o';}
+function vcClsTitle(k){for(var i=0;i<VCL.length;i++)if(VCL[i].k===k)return VCL[i].t;return '';}
+function vcHdr(s){return s.u>0?'Unidade '+dn(s.u)+' · ':s.u===-1?vcClsTitle(s.cls)+' · ':'Revisão · ';}
+function vcRow(id,first){
+  var x=vcWord(id),st=vcStatus(id);
+  return '<div style="padding:10px 0;'+(first?'':'border-top:1px solid var(--line)')+'"><div class="row" style="align-items:center"><span class="grow">'+emoW(x.w)+'<strong>'+esc(x.w)+'</strong> <span class="small muted">'+(VPOS[x.pos]||x.pos)+'</span></span><span class="chip'+(st==='aprendida'?' ok':'')+'">'+st+'</span>'+sayBtnM(x.w)+'</div><div>'+esc(x.pt)+'</div><div class="row" style="align-items:center"><span class="grow small muted"><em>'+esc(x.ex)+'</em></span>'+sayBtnM(x.ex)+'</div></div>';
+}
+function vcClsChips(cur,cnt,total,act){
+  var h='<div class="row" style="flex-wrap:wrap">';
+  if(act==='vccls')h+='<button type="button" class="vtog" data-act="vccls" data-k="all" aria-pressed="'+(cur==='all')+'">Todas · '+total+'</button>';
+  VCL.forEach(function(g){if(cnt[g.k])h+='<button type="button" class="vtog" data-act="'+act+'" data-k="'+g.k+'" aria-pressed="'+(cur===g.k)+'">'+g.t+' · '+cnt[g.k]+'</button>';});
+  return h+'</div>';
+}
+function vcList(){
+  var s=S.vc,u=s.u,n=vcCount(u),L=vcLearned(u),U=UNITS[u-1],items=VOC[u-1],cur=s.cls||'all';
+  var by={v:[],n:[],adj:[],o:[]},cnt={v:0,n:0,adj:0,o:0};
+  items.forEach(function(r,i){var k=vcClsOf(r[1]);by[k].push(u+'.'+i);cnt[k]++;});
+  var h='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">Unidade '+dn(u)+' · Palavras</div><h2>'+n+' palavras: '+esc(U.title)+'</h2></header>';
+  h+='<section class="card"><p class="small"><strong class="num">'+L+' de '+n+'</strong> aprendidas. Uma palavra conta como aprendida depois de 3 acertos em dias diferentes. As que você erra voltam no dia seguinte.</p>'+vcBar(L,n)+'<button class="btn primary" data-act="vcgo">Praticar 10 palavras</button></section>';
+  h+=vcClsChips(cur,cnt,n,'vccls');
+  VCL.forEach(function(g){
+    if(!by[g.k].length||(cur!=='all'&&cur!==g.k))return;
+    h+='<section class="card"><h3>'+g.t+' <span class="small muted num">'+by[g.k].length+'</span></h3><div class="list">'+by[g.k].map(function(id,i){return vcRow(id,i===0);}).join('')+'</div></section>';
+  });
+  return h;
+}
+function vcClsIds(k){
+  var ids=[];
+  for(var u=1;u<=VOC.length;u++)VOC[u-1].forEach(function(r,i){if(vcClsOf(r[1])===k)ids.push(u+'.'+i);});
+  return ids;
+}
+function vcPickCls(k){
+  var w=vocDoc().w,t=today(),due=[],fresh=[],rest=[];
+  vcClsIds(k).forEach(function(id){var r=w[id];if(!r)fresh.push(id);else if(r.d<=t)due.push(id);else rest.push(id);});
+  rest.sort(function(a,b){return w[a].b-w[b].b;});
+  return shuffle(shuffle(due).concat(shuffle(fresh),rest).slice(0,10));
+}
+function vcClsList(){
+  var s=S.vc,k=s.cls,t=vcClsTitle(k),ids=vcClsIds(k),cnt={v:0,n:0,adj:0,o:0},L=0;
+  for(var u0=1;u0<=VOC.length;u0++)VOC[u0-1].forEach(function(r){cnt[vcClsOf(r[1])]++;});
+  ids.forEach(function(id){if(vcStatus(id)==='aprendida')L++;});
+  var h='<header><button class="btn ghost" data-act="vcback">'+ic(I.back,18)+vcBackLabel(s)+'</button><div class="eyebrow" style="margin-top:8px">Palavras por classe</div><h2>'+ids.length+' '+t.toLowerCase()+'</h2></header>';
+  h+='<section class="card"><p class="small"><strong class="num">'+L+' de '+ids.length+'</strong> aprendidas. Cada rodada traz 10 palavras desta classe, de qualquer unidade, começando pelas que estão vencidas.</p>'+vcBar(L,ids.length)+'<button class="btn primary" data-act="vcgo">Praticar 10 palavras</button></section>';
+  h+=vcClsChips(k,cnt,0,'vccopen');
+  var first=true;
+  for(var u=1;u<=VOC.length;u++){
+    var mine=[];VOC[u-1].forEach(function(r,i){if(vcClsOf(r[1])===k)mine.push(u+'.'+i);});
+    if(!mine.length)continue;
+    h+='<details class="card"'+(first?' open':'')+'><summary><strong>Unidade '+dn(u)+': '+esc(UNITS[u-1].title)+'</strong> <span class="small muted num">'+mine.length+'</span></summary><div class="list">'+mine.map(function(id,i){return vcRow(id,i===0);}).join('')+'</div></details>';
+    first=false;
+  }
+  return h;
+}
+function vcClsMenu(){
+  var cnt={v:0,n:0,adj:0,o:0};
+  VOC.forEach(function(un){un.forEach(function(r){cnt[vcClsOf(r[1])]++;});});
+  return '<section class="card"><h3>Por classe</h3><p class="small muted">Todas as unidades juntas, separadas em verbos, substantivos, adjetivos e outros (advérbios e expressões).</p><div class="row" style="flex-wrap:wrap">'+VCL.map(function(g){return '<button class="btn" data-act="vccopen" data-k="'+g.k+'">'+g.t+' · '+cnt[g.k]+'</button>';}).join('')+'</div></section>';
+}
+function vcClsAct(a,t){
+  if(a==='vccls'){if(S.vc){S.vc.cls=t.dataset.k;render();}}
+  else{S.vc={from:null,u:-1,cls:t.dataset.k,qs:null};render();window.scrollTo(0,0);}
+}
+
 document.addEventListener('visibilitychange',function(){if(document.hidden){VP.hands=false;psClose();if(S.chat)voiceHalt();if(S.rp)rpHalt();}});
 /* ---------- ações ---------- */
 function parseScore(txt,max){var x=parseFloat(String(txt).replace(',','.'));if(isNaN(x)||x<0||x>max)return null;return Math.round(x*10)/10;}
@@ -2663,6 +2740,7 @@ function act(a,t){
    case 'latx':S.la.tx=!S.la.tx;render();break;
    case 'laagain':{var f3=S.la&&S.la.from;laOpen(+t.dataset.i,f3);window.scrollTo(0,0);break;}
    case 'laback':laBack();break;
+   case 'vccls':case 'vccopen':vcClsAct(a,t);break;
    case 'vcopen':vcOpen(+t.dataset.u,t.dataset.from==null?null:+t.dataset.from);window.scrollTo(0,0);break;
    case 'vcgo':vcGo();break;
    case 'vcrev':vcRev(t.dataset.from==='rev'?'rev':null);break;

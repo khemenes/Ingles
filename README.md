@@ -26,5 +26,10 @@ Os nomes dos modelos mudam com o tempo. Se o teste disser que o modelo não exis
 - O microfone precisa de permissão do navegador (cadeado ao lado do endereço). A fala é transformada em texto pela IA da sua chave: se houver chave do Groq, usa o Whisper do Groq (mais rápido); senão usa o Gemini. O áudio não fica guardado.
 - A nota de "Repetir frases" mostra se você foi entendido palavra por palavra. Ela não mede o sotaque.
 
+## Vocabulário
+- Cada lista de palavras é separada em **Verbos** (inclui phrasal verbs), **Substantivos**, **Adjetivos** e **Outros** (advérbios e expressões), com filtro por classe.
+- Em **Treino → Palavras → Por classe** estão todas as unidades juntas, por classe, e dá para praticar 10 palavras só daquela classe.
+- As palavras concretas têm emoji ao lado, nas aulas de vocabulário, na lista e no quiz. O áudio e a comparação de voz ignoram o emoji.
+
 ## Progresso
 O progresso fica salvo no navegador. Em **Ajustes**, use **Exportar progresso** para baixar um backup e **Importar progresso** para restaurar em outro aparelho. Limpar os dados do navegador apaga o progresso, por isso exporte de vez em quando.
