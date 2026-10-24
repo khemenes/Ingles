@@ -345,11 +345,14 @@ details.card>summary{cursor:pointer;display:flex;gap:8px;align-items:center;just
     /* junta os blocos [from,to), reduz para 16 kHz e grava PCM 16 bits */
     var n=0,i,k;for(i=from;i<to;i++)n+=chunks[i].length;
     var all=new Float32Array(n),o=0;for(i=from;i<to;i++){all.set(chunks[i],o);o+=chunks[i].length;}
+    var pk=0;for(k=0;k<n;k++){var av=all[k]<0?-all[k]:all[k];if(av>pk)pk=av;}
+    var gain=(pk>0.005&&pk<0.6)?Math.min(10,0.9/pk):1;
+    encodeWav.peak=pk;
     var SR=16000,ratio=srIn/SR,len=Math.max(1,Math.floor(n/ratio)),pcm=new Int16Array(len);
     for(i=0;i<len;i++){
       var a=Math.floor(i*ratio),b=Math.min(n,Math.max(a+1,Math.floor((i+1)*ratio))),sum=0;
       for(k=a;k<b;k++)sum+=all[k];
-      var v=sum/(b-a);v=Math.max(-1,Math.min(1,v));pcm[i]=v<0?v*32768:v*32767;
+      var v=sum/(b-a)*gain;v=Math.max(-1,Math.min(1,v));pcm[i]=v<0?v*32768:v*32767;
     }
     var buf=new ArrayBuffer(44+len*2),dv=new DataView(buf);
     function W(p,s){for(var j=0;j<s.length;j++)dv.setUint8(p+j,s.charCodeAt(j));}
@@ -371,8 +374,8 @@ details.card>summary{cursor:pointer;display:flex;gap:8px;align-items:center;just
       try{proc.onaudioprocess=null;src.disconnect();proc.disconnect();mute.disconnect();}catch(e){}
       var frameMs=4096/sr*1000,speech=voiced*frameMs>=250;
       try{
-        var from=firstV>=0?Math.max(0,firstV-4):0;
-        resolve({blob:chunks.length?encodeWav(chunks,sr,from,chunks.length):null,speech:speech,ms:Date.now()-t0,reason:reason});
+        var from=firstV>=0?Math.max(0,firstV-7):0;
+        var bl=chunks.length?encodeWav(chunks,sr,from,chunks.length):null;resolve({blob:bl,speech:speech,ms:Date.now()-t0,reason:reason,peak:encodeWav.peak||0});
       }catch(e){reject(err('mic_fail',e&&e.message));}
     }
     proc.onaudioprocess=function(ev){
@@ -404,11 +407,11 @@ details.card>summary{cursor:pointer;display:flex;gap:8px;align-items:center;just
     async function once(model){
       var r;
       if(useGroq){
-        var fd=new FormData();fd.append('file',blob,'speech.wav');fd.append('model',model);fd.append('language','en');fd.append('temperature','0');fd.append('response_format','json');
+        var fd=new FormData();fd.append('file',blob,'speech.wav');fd.append('model',model);fd.append('language','en');fd.append('temperature','0');fd.append('response_format','json');if(o.prompt)fd.append('prompt',String(o.prompt).slice(0,200));
         r=await fetch('https://api.groq.com/openai/v1/audio/transcriptions',{method:'POST',headers:{Authorization:'Bearer '+key},body:fd,signal:ctl.signal});
       }else{
         var b64=await blobB64(blob);
-        var body={contents:[{role:'user',parts:[{text:'Transcribe exactly what the speaker says, word for word, in English. Do not correct grammar or pronunciation mistakes and do not add words. Output only the transcript. If there is no intelligible speech, output nothing.'},{inline_data:{mime_type:'audio/wav',data:b64}}]}],generationConfig:{maxOutputTokens:1024,temperature:0}};
+        var body={contents:[{role:'user',parts:[{text:(o.lenient?'The speaker is a Brazilian adult learning English, so the accent is Brazilian and pronunciation may be imperfect. Transcribe what they mean to say, in English, giving the benefit of the doubt to slightly mispronounced words. Do not fix grammar. Output only the transcript. If there is no intelligible speech, output nothing.':'The speaker is a Brazilian adult learning English, so the accent is Brazilian. Transcribe word by word what you hear, in English. Do not fix grammar and do not add words. Output only the transcript. If there is no intelligible speech, output nothing.')},{inline_data:{mime_type:'audio/wav',data:b64}}]}],generationConfig:{maxOutputTokens:1024,temperature:0}};
         if(/^gemini-3/.test(model))body.generationConfig.thinkingConfig={thinkingLevel:'low'};
         r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body),signal:ctl.signal});
       }
@@ -420,7 +423,7 @@ details.card>summary{cursor:pointer;display:flex;gap:8px;align-items:center;just
       return ps.map(function(p){return p.text||'';}).join('');
     }
     try{
-      var models=useGroq?['whisper-large-v3-turbo','whisper-large-v3']:[c.provider==='gemini'?c.quick:'gemini-3.5-flash',FALLBACK],out='',lastE=null;
+      var models=useGroq?['whisper-large-v3','whisper-large-v3-turbo']:[c.provider==='gemini'?c.quick:'gemini-3.5-flash',FALLBACK],out='',lastE=null;
       for(var k=0;k<models.length;k++){
         try{out=await once(models[k]);lastE=null;break;}
         catch(e){
@@ -2269,7 +2272,50 @@ try{VP.speak=!!(JSON.parse(localStorage.getItem('ic_vpref')||'{}').speak);}catch
 function vpSave(){try{localStorage.setItem('ic_vpref',JSON.stringify({speak:VP.speak}));}catch(e){}}
 var V={st:'idle',msg:'',rec:null,sp:null,gen:0,nos:0,tctl:null};
 var R={gen:0,rec:null,ctl:null};
-var RPASS=0.8;
+var RPASS=0.75;
+/* comparação tolerante com sotaque: aceita pequenas variações de som/grafia, números e plural */
+var PCN={zero:'0',one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12',thirteen:'13',fourteen:'14',fifteen:'15',sixteen:'16',seventeen:'17',eighteen:'18',nineteen:'19',twenty:'20'};
+function pcLev(a,b){
+  var m=a.length,n=b.length,d=[],i,j;
+  for(i=0;i<=m;i++){d.push([i]);}for(j=1;j<=n;j++)d[0][j]=j;
+  for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+  return d[m][n];
+}
+function pcEq(a,b){
+  a=PCN[a]||a;b=PCN[b]||b;
+  if(a===b)return true;
+  var x=a.replace(/[^a-z0-9]/g,''),y=b.replace(/[^a-z0-9]/g,'');
+  if(x===y)return true;
+  var L=Math.max(x.length,y.length);
+  if(L<4)return false;
+  return pcLev(x,y)<=(L>=8?2:1);
+}
+function pronCompare(target,said){
+  var A=ditTok(target),B=ditTok(said).filter(function(x){return ['uh','um','hmm','ah','er'].indexOf(x.toks[0])<0;}),fa=[],fb=[],i,j;
+  A.forEach(function(x,k){x.toks.forEach(function(t){fa.push({t:t,k:k});});});
+  B.forEach(function(x,k){x.toks.forEach(function(t){fb.push({t:t,k:k});});});
+  var n=fa.length,m=fb.length,L=[];
+  for(i=0;i<=n;i++)L.push(new Array(m+1).fill(0));
+  for(i=n-1;i>=0;i--)for(j=m-1;j>=0;j--)L[i][j]=pcEq(fa[i].t,fb[j].t)?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+  var hit={},extra={};i=0;j=0;
+  while(i<n&&j<m){
+    if(pcEq(fa[i].t,fb[j].t)){hit[fa[i].k]=(hit[fa[i].k]||0)+1;i++;j++;}
+    else if(L[i+1][j]>=L[i][j+1])i++;
+    else{extra[fb[j].k]=1;j++;}
+  }
+  while(j<m){extra[fb[j].k]=1;j++;}
+  var miss={};A.forEach(function(x,k){if((hit[k]||0)<x.toks.length)miss[k]=1;});
+  var nm=Object.keys(miss).length;
+  return {ok:!nm&&!Object.keys(extra).length,ratio:A.length?1-nm/A.length:0,
+    target:A.map(function(x,k){return miss[k]?'<mark class="dmiss">'+esc(x.w)+'</mark>':esc(x.w);}).join(' '),
+    typed:B.map(function(x,k){return extra[k]?'<span class="wrongtxt">'+esc(x.w)+'</span>':esc(x.w);}).join(' ')};
+}
+/* dica para o Whisper em palavras e frases curtas (ele erra muito palavra solta) */
+function pcHint(t){return String(t).split(/\s+/).length<=3?t:'';}
+/* ouvir a própria gravação e avisar se o volume veio baixo */
+function pcUrl(prev,blob){try{if(prev)URL.revokeObjectURL(prev);}catch(e){}try{return blob?URL.createObjectURL(blob):'';}catch(e){return '';}}
+function pcPlay(url){if(!url)return;try{vStopSpeak();var a=new Audio(url);a.play().catch(function(){flash('Não consegui tocar a gravação.');});}catch(e){}}
+function pcLow(pk){return pk>0&&pk<0.06?'<p class="small"><strong>O áudio chegou muito baixo.</strong> Fale mais perto do microfone, ou aumente o volume de entrada do aparelho.</p>':'';}
 function voiceOk(){return !!(window.IC&&IC.mic&&IC.mic.supported());}
 function vLevel(rms){var e=document.getElementById('vlev');if(e)e.style.width=Math.min(100,Math.round(rms*900))+'%';}
 function vUnlock(){try{if(speechOk()){var u=new window.SpeechSynthesisUtterance(' ');u.volume=0;window.speechSynthesis.speak(u);}}catch(e){}}
@@ -2327,6 +2373,7 @@ function voiceBarHtml(){
   h+='<div class="row" style="flex-wrap:wrap">'+
     (speechOk()?'<button type="button" class="vtog" data-act="vspeak" aria-pressed="'+VP.speak+'">Ouvir as respostas: '+(VP.speak?'sim':'não')+'</button>':'')+
     (voiceOk()?'<button type="button" class="vtog" data-act="vhands" aria-pressed="'+VP.hands+'">Modo voz: '+(VP.hands?'ligado':'desligado')+'</button>':'')+'</div>';
+  if(V.url&&V.st==='idle')h+='<div class="row"><button type="button" class="btn ghost" data-act="vplay">'+ic(I.mic,18)+' Ouvir minha última gravação</button></div>';
   h+='<p class="small muted" id="vstat" aria-live="polite">'+esc(V.msg||(VP.hands?'Modo voz ligado: o professor fala, depois eu ouço você.':''))+'</p></div>';
   return h;
 }
@@ -2368,10 +2415,11 @@ async function voiceListen(auto){
     V.nos=0;vSet('idle',msg+(VP.hands?' Modo voz em pausa: toque em Falar para continuar.':' Toque em Falar e tente de novo.'));
   }
   if(!r.speech||!r.blob){again('Não ouvi nada.');return;}
+  V.url=pcUrl(V.url,r.blob);
   vSet('transcribing','Entendendo o que você disse…');
   V.tctl=new AbortController();
   var text;
-  try{text=await IC.transcribe(r.blob,{signal:V.tctl.signal});}
+  try{text=await IC.transcribe(r.blob,{signal:V.tctl.signal,lenient:true});}
   catch(e){V.tctl=null;if(my!==V.gen)return;if(e&&(e.code==='bad_key'||e.code==='no_key'))VP.hands=false;vSet('idle',e&&e.code==='cancelled'?'':IC.errMsg(e));return;}
   V.tctl=null;
   if(my!==V.gen||S.chat!==c)return;
@@ -2385,6 +2433,7 @@ async function voiceListen(auto){
 function voiceAct(a){
   switch(a){
    case 'vrec':vUnlock();voiceListen(false);break;
+   case 'vplay':pcPlay(V.url);break;
    case 'vstop':
      if(V.st==='listening'&&V.rec){V.rec.stop();}
      else if(V.st==='speaking'){var wasH=VP.hands;vStopSpeak();V.gen++;vSet('idle','');if(wasH&&S.chat&&!S.chat.busy)voiceListen(true);}
@@ -2464,8 +2513,8 @@ function rpScreen(){
     var c=d.cur,lab=c.ratio>=1&&c.ok?'Perfeito.':c.ok?'Muito bem.':c.ratio>=0.5?'Quase.':'Vamos tentar de novo.';
     h+='<div class="'+(c.ok?'okbox':'warnbox')+'"><strong>'+lab+'</strong> <span class="num small">'+Math.round(c.ratio*100)+'% das palavras</span>'+
       (c.said?'<p class="small">Eu entendi: '+c.typed+'</p>':'<p class="small">Não consegui entender nenhuma palavra.</p>')+
-      (c.ratio<1&&c.said?'<p class="small muted">Frase: '+c.target+' (as palavras em destaque não foram entendidas)</p>':'')+'</div>';
-    h+='<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="sayfull" data-say="'+esc(it.s)+'">'+ic(I.vol,18)+' Ouvir</button><button class="btn" data-act="sayslow" data-say="'+esc(it.s)+'">'+ic(I.vol,18)+' Devagar</button></div>'+
+      (c.ratio<1&&c.said?'<p class="small muted">Frase: '+c.target+' (as palavras em destaque não foram entendidas)</p>':'')+pcLow(c.peak)+'</div>';
+    h+='<div class="row" style="flex-wrap:wrap"><button class="btn" data-act="sayfull" data-say="'+esc(it.s)+'">'+ic(I.vol,18)+' Ouvir</button><button class="btn" data-act="sayslow" data-say="'+esc(it.s)+'">'+ic(I.vol,18)+' Devagar</button>'+(d.url?'<button class="btn" data-act="rpplay">'+ic(I.mic,18)+' Minha gravação</button>':'')+'</div>'+
       '<div class="row" style="flex-wrap:wrap"><button class="btn'+(c.ok?'':' primary')+' vmic" data-act="rprec">'+ic(I.mic,18)+' Tentar de novo</button><button class="btn'+(c.ok?' primary':'')+'" data-act="rpnext">'+(last?'Ver resultado':'Próxima')+'</button></div>';
   }
   return h+'</section>';
@@ -2488,13 +2537,14 @@ async function rpRec(){
   d.phase='tr';render();
   R.ctl=new AbortController();
   var text;
-  try{text=await IC.transcribe(r.blob,{signal:R.ctl.signal});}
+  try{text=await IC.transcribe(r.blob,{signal:R.ctl.signal,prompt:pcHint(it.s)});}
   catch(e){R.ctl=null;if(my!==R.gen||S.rp!==d)return;d.phase='q';d.err=e&&e.code==='cancelled'?'':IC.errMsg(e);render();return;}
   R.ctl=null;
   if(my!==R.gen||S.rp!==d)return;
-  var cmp=ditCompare(it.s,text||'');
+  var cmp=pronCompare(it.s,text||'');
   d.tries++;
-  d.cur={ok:cmp.ratio>=RPASS,ratio:cmp.ratio,target:cmp.target,typed:cmp.typed,said:text||''};
+  d.url=pcUrl(d.url,r.blob);
+  d.cur={ok:cmp.ratio>=RPASS,ratio:cmp.ratio,target:cmp.target,typed:cmp.typed,said:text||'',peak:r.peak||0};
   d.phase='a';render();
 }
 function rpNext(skip){
@@ -2515,6 +2565,7 @@ function rpAct(a,t){
    case 'rpstart':rpStart(t.dataset.n==='mix'?'mix':+t.dataset.n);break;
    case 'rprec':rpRec();break;
    case 'rpstop':if(R.rec)R.rec.stop();break;
+   case 'rpplay':if(S.rp)pcPlay(S.rp.url);break;
    case 'rpskip':rpNext(true);break;
    case 'rpnext':rpNext(false);break;
    case 'rpback':rpHalt();S.rp=null;render();break;
@@ -2547,8 +2598,8 @@ function psPaint(){
     var c=PS.cur,lab=c.ratio>=1&&c.ok?'Perfeito.':c.ok?'Muito bem.':c.ratio>=0.5?'Quase.':'Vamos tentar de novo.';
     h+='<div class="'+(c.ok?'okbox':'warnbox')+'"><strong>'+lab+'</strong> <span class="num small">'+Math.round(c.ratio*100)+'% das palavras</span>'+
       (c.said?'<p class="small">Eu entendi: '+c.typed+'</p>':'<p class="small">Não consegui entender.</p>')+
-      (c.ratio<1&&c.said?'<p class="small muted">Frase: '+c.target+' (em destaque, o que não foi entendido)</p>':'')+'</div>'+
-      '<div class="row" style="flex-wrap:wrap">'+hear+'<button type="button" class="btn'+(c.ok?'':' primary')+' vmic" data-act="prec">'+ic(I.mic,18)+' Tentar de novo</button></div>';
+      (c.ratio<1&&c.said?'<p class="small muted">Frase: '+c.target+' (em destaque, o que não foi entendido)</p>':'')+pcLow(c.peak)+'</div>'+
+      '<div class="row" style="flex-wrap:wrap">'+hear+(PS.url?'<button type="button" class="btn" data-act="pplay">'+ic(I.mic,18)+' Minha gravação</button>':'')+'<button type="button" class="btn'+(c.ok?'':' primary')+' vmic" data-act="prec">'+ic(I.mic,18)+' Tentar de novo</button></div>';
   }
   e.innerHTML=h;e.hidden=false;
 }
@@ -2556,7 +2607,7 @@ function psClose(){
   PS.gen++;
   try{if(PS.rec)PS.rec.stop();}catch(e){}PS.rec=null;
   try{if(PS.ctl)PS.ctl.abort();}catch(e){}PS.ctl=null;
-  var had=!!PS.text;PS.text='';PS.phase='q';PS.listening=false;PS.cur=null;PS.err='';
+  var had=!!PS.text;try{if(PS.url)URL.revokeObjectURL(PS.url);}catch(e){}PS.url='';PS.text='';PS.phase='q';PS.listening=false;PS.cur=null;PS.err='';
   if(had){psPaint();vStopSpeak();if(!S.chat&&!S.rp){try{IC.mic.close();}catch(e){}}}
 }
 async function psRec(){
@@ -2577,12 +2628,13 @@ async function psRec(){
   PS.phase='tr';psPaint();
   PS.ctl=new AbortController();
   var text;
-  try{text=await IC.transcribe(r.blob,{signal:PS.ctl.signal});}
+  try{text=await IC.transcribe(r.blob,{signal:PS.ctl.signal,prompt:pcHint(target)});}
   catch(e){PS.ctl=null;if(my!==PS.gen)return;PS.phase='q';PS.err=e&&e.code==='cancelled'?'':IC.errMsg(e);psPaint();return;}
   PS.ctl=null;
   if(my!==PS.gen)return;
-  var cmp=ditCompare(target,text||'');
-  PS.cur={ok:cmp.ratio>=RPASS,ratio:cmp.ratio,target:cmp.target,typed:cmp.typed,said:text||''};
+  var cmp=pronCompare(target,text||'');
+  PS.url=pcUrl(PS.url,r.blob);
+  PS.cur={ok:cmp.ratio>=RPASS,ratio:cmp.ratio,target:cmp.target,typed:cmp.typed,said:text||'',peak:r.peak||0};
   PS.phase='a';psPaint();
 }
 function psAct(a,t){
@@ -2594,6 +2646,7 @@ function psAct(a,t){
    case 'prec':psRec();break;
    case 'pstop':if(PS.rec)PS.rec.stop();break;
    case 'pclose':psClose();break;
+   case 'pplay':pcPlay(PS.url);break;
   }
 }
 
@@ -2751,9 +2804,9 @@ function act(a,t){
    case 'wrsend':wrSend();break;
    case 'wrnew':{var e1=S.ex;if(e1){e1.res=null;e1.err='';render();window.scrollTo(0,0);}break;}
    case 'trask':S.confirmReset='treino';render();break;
-   case 'vrec':case 'vstop':case 'vspeak':case 'vhands':voiceAct(a);break;
-   case 'pmic':case 'prec':case 'pstop':case 'pclose':psAct(a,t);break;
-   case 'rpstart':case 'rprec':case 'rpstop':case 'rpskip':case 'rpnext':case 'rpback':rpAct(a,t);break;
+   case 'vrec':case 'vstop':case 'vspeak':case 'vhands':case 'vplay':voiceAct(a);break;
+   case 'pmic':case 'prec':case 'pstop':case 'pclose':case 'pplay':psAct(a,t);break;
+   case 'rpstart':case 'rprec':case 'rpstop':case 'rpskip':case 'rpnext':case 'rpback':case 'rpplay':rpAct(a,t);break;
    case 'trzero':trainReset();break;
    case 'icsave':{var k=document.getElementById('icKey'),m=document.getElementById('icModel'),q=document.getElementById('icQuick'),o={};
      if(k&&k.value.trim())o.key=k.value.trim();if(m&&m.value.trim())o.model=m.value.trim();if(q&&q.value.trim())o.quick=q.value.trim();
