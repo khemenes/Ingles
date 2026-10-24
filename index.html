@@ -748,7 +748,6 @@ function unitScreen(n){
     var ns=nextStep(n),si=stepInfo(ns);
     h+='<div class="warnbox"><strong>O que falta para fechar</strong><p>'+left+' '+(left===1?'passo':'passos')+'. Próximo: Lição '+(si.L+1)+' · '+si.name+'.</p>'+w+'<button class="btn primary" data-act="step" data-i="'+ns+'">Ir para o próximo passo</button></div>';
   }
-  h+=unitExtras(n);
   for(var L2=0;L2<4;L2++){
     h+='<section class="list"><h3 style="padding-top:8px">Lição '+(L2+1)+' · '+LESSONS[L2]+'</h3>';
     for(var k2=0;k2<4;k2++){
@@ -759,7 +758,7 @@ function unitScreen(n){
     }
     h+='</section>';
   }
-  return h+resetBox(n);
+  return h+unitExtras(n)+resetBox(n);
 }
 /* ---------- conteúdo das unidades ---------- */
 function loadUnit(n){
