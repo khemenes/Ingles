@@ -29,6 +29,7 @@ Os nomes dos modelos mudam com o tempo. Se o teste disser que o modelo não exis
 ## Vocabulário
 - Cada lista de palavras é separada em **Verbos** (inclui phrasal verbs), **Substantivos**, **Adjetivos** e **Outros** (advérbios e expressões), com filtro por classe.
 - Em **Treino → Palavras → Por classe** estão todas as unidades juntas, por classe, e dá para praticar 10 palavras só daquela classe.
+- A **aula de vocabulário** de cada unidade vem em 2 a 3 partes, por tema. Depois de cada parte há um mini-treino (até 6 perguntas) só com as palavras dela, e os exercícios da unidade ficam no fim. A parte em que você parou fica salva.
 - As palavras concretas têm emoji ao lado, nas aulas de vocabulário, na lista e no quiz. O áudio e a comparação de voz ignoram o emoji.
 
 ## Progresso

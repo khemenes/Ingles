@@ -968,6 +968,7 @@ function stepBody(n,i,s,D,has){
   if(s.kind==='aula'){
     if(D==='loading')h+=wait;
     else if(!has)h+=none;
+    else if(apOn(n,i,s,D))h+=apBody(n,i,les);
     else h+='<p class="muted">'+esc(les.goal)+'</p><article class="prose">'+(speechOk()?'<p class="small muted">Toque no botão de som para ouvir. Toque de novo para ouvir mais devagar. Toque na palavra sublinhada para ver como ela se pronuncia.'+(voiceOk()?' Toque no microfone para repetir em voz alta e ver se a IA entendeu.':'')+'</p>':'')+aulaHtml(les.aula,L)+'</article>';
   }else if(s.kind==='exercicios'){
     if(D==='loading')h+=wait;
@@ -1016,7 +1017,9 @@ function stepScreen(n,i){
   h+='<button class="back" data-act="back">'+ic(I.back,18)+' '+(isP(n)?'Teste de passagem':'Unidade '+dn(n))+'</button>';
   h+='<header><div class="eyebrow">'+(isP(n)?uname(n):'Unidade '+dn(n)+' · Lição '+(s.L+1)+' · '+LESSONS[s.L])+'</div><h1>'+s.name+'</h1></header>';
   h+=stepBody(n,i,s,D,has);
-  if(s.kind==='aula'&&has){
+  if(s.kind==='aula'&&has&&apOn(n,i,s,D)){
+    /* os botões ficam dentro das partes */
+  }else if(s.kind==='aula'&&has){
     h+=d?'<div class="okbox"><strong>Aula concluída.</strong></div><div class="row"><button class="btn primary grow" data-act="step" data-i="'+(i+1)+'">Ir para os exercícios</button><button class="btn ghost" data-act="toggle">Desmarcar</button></div>'
         :'<button class="btn primary" data-act="aulaend">Terminei a aula, ir para os exercícios</button>';
   }else if(s.kind==='exercicios'&&has){
@@ -2725,6 +2728,141 @@ function vcClsAct(a,t){
 }
 
 document.addEventListener('visibilitychange',function(){if(document.hidden){VP.hands=false;psClose();if(S.chat)voiceHalt();if(S.rp)rpHalt();}});
+/* ---------- aula de vocabulário em partes + mini-treino ---------- */
+var AP={};
+function apW(b){return b.t==='table'?b.rows.length:b.t==='ul'?b.items.length:b.t==='p'?3:0;}
+function apParts(les){
+  if(les.__ap)return les.__ap;
+  var bl=[],i,k,sz;
+  les.aula.forEach(function(b){
+    if(b.t==='table'&&b.rows.length>8){
+      k=Math.ceil(b.rows.length/6);sz=Math.ceil(b.rows.length/k);
+      for(i=0;i<b.rows.length;i+=sz)bl.push({t:'table',head:b.head,rows:b.rows.slice(i,i+sz)});
+    }else bl.push(b);
+  });
+  var atoms=[],pend=[];
+  bl.forEach(function(b){pend.push(b);if(b.t!=='h'){atoms.push({b:pend,w:apW(b)});pend=[];}});
+  if(pend.length){if(atoms.length)atoms[atoms.length-1].b=atoms[atoms.length-1].b.concat(pend);else atoms.push({b:pend,w:0});}
+  var parts=[],cur=null;
+  atoms.forEach(function(a){
+    var hasH=a.b[0].t==='h';
+    if(cur&&cur.w>0&&(cur.w+a.w>10||(hasH&&cur.w>=5))){parts.push(cur);cur=null;}
+    if(!cur)cur={b:[],w:0};
+    cur.b=cur.b.concat(a.b);cur.w+=a.w;
+  });
+  if(cur)parts.push(cur);
+  if(parts.length>1){var lt=parts[parts.length-1],pv=parts[parts.length-2];if(lt.w<4&&pv.w+lt.w<=14){pv.b=pv.b.concat(lt.b);pv.w+=lt.w;parts.pop();}}
+  parts.forEach(function(p){p.pairs=apPairs(p.b);});
+  var all=[];parts.forEach(function(p){all=all.concat(p.pairs);});
+  parts.forEach(function(p){p.pool=all;});
+  les.__ap=parts;return parts;
+}
+function apClean(s){return String(s).replace(/\*+/g,'').replace(/\s+/g,' ').trim();}
+function apParen(text,out){
+  var t=apClean(text),re=/([A-Za-z][A-Za-z' \/\-]{1,28}?)\s*\(([^()]{2,50})\)/g,m;
+  while((m=re.exec(t))){
+    var en=m[1].replace(/^(and|or|e|ou)\s+/i,'').trim(),pt=m[2].split(';')[0].trim();
+    if(en.length>=2&&pt.length>=2&&!/^\d/.test(pt))out.push([en,pt]);
+  }
+}
+function apPairs(blocks){
+  var out=[];
+  blocks.forEach(function(b){
+    if(b.t==='table'){
+      if(/^(Significado|Português)$/.test(b.head[1]||'')){b.rows.forEach(function(r){var en=apClean(r[0]),pt=apClean(r[1]).split(';')[0].trim();if(en&&pt&&en.length<=30)out.push([en,pt]);});}
+      else b.rows.forEach(function(r){apParen(r.join(', '),out);});
+    }else if(b.t==='ul'){
+      b.items.forEach(function(it){var m=/^\*\*([^*]+)\*\*\s*=\s*([^.*]+)/.exec(it);if(m)out.push([apClean(m[1]),apClean(m[2]).split(';')[0].trim()]);});
+    }else if(b.t==='p')apParen(b.text,out);
+  });
+  var seen={},res=[];
+  out.forEach(function(x){var k=x[0].toLowerCase();if(!seen[k]&&x[0]&&x[1]){seen[k]=1;res.push(x);}});
+  return res;
+}
+function apSt(n,N){
+  var st=AP[n];
+  if(!st){var vp=prog(n).vp||0;st=AP[n]={p:Math.min(Math.max(0,vp),N-1),m:'read',q:null};}
+  if(st.p>=N)st.p=N-1;
+  return st;
+}
+function apOn(n,i,s,D){
+  if(s.L!==0||isP(n)||!D||D==='loading'||!D.lessons||!D.lessons[0]||!D.lessons[0].aula)return false;
+  if(stepDone(prog(n),i))return false;
+  return apParts(D.lessons[0]).length>1;
+}
+function apQs(part){
+  var ps=part.pairs.slice(),qs=[],pool=part.pool;
+  ps=shuffle(ps).slice(0,6);
+  ps.forEach(function(x,idx){
+    var kind=idx%2===0?'en':'pt',f=kind==='en'?1:0;
+    var dis=shuffle(pool.filter(function(y){return y[0].toLowerCase()!==x[0].toLowerCase()&&y[1].toLowerCase()!==x[1].toLowerCase();})).slice(0,2).map(function(y){return y[f];});
+    if(dis.length<2)return;
+    var opts=shuffle([x[f]].concat(dis));
+    qs.push({kind:kind,en:x[0],pt:x[1],o:opts,a:opts.indexOf(x[f])});
+  });
+  return qs;
+}
+function apBars(N,p){
+  var h='<div class="row" style="gap:6px;margin:6px 0">';
+  for(var k=0;k<N;k++)h+='<span style="flex:1;height:8px;border-radius:99px;background:'+(k<p?'var(--accent)':k===p?'var(--accent-soft)':'var(--line)')+(k===p?';outline:1px solid var(--accent)':'')+'"></span>';
+  return h+'</div>';
+}
+function apBody(n,i,les){
+  var P=apParts(les),N=P.length,st=apSt(n,N),part=P[st.p],last=st.p===N-1,h='';
+  h+='<p class="muted">'+esc(les.goal)+'</p>';
+  h+='<div class="eyebrow">Parte '+(st.p+1)+' de '+N+'</div>'+apBars(N,st.p);
+  if(st.m==='read'){
+    h+='<article class="prose">'+(speechOk()?'<p class="small muted">Toque no botão de som para ouvir. Toque de novo para ouvir mais devagar. Toque no microfone para repetir em voz alta.</p>':'')+aulaHtml(part.b,0)+'</article>';
+    var can=part.pairs.length>=3;
+    h+='<div class="row" style="flex-wrap:wrap;margin-top:12px">';
+    if(can)h+='<button class="btn primary grow" data-act="apprac">Praticar estas palavras</button>';
+    else h+='<button class="btn primary grow" data-act="'+(last?'aulaend':'apnext')+'">'+(last?'Terminei a aula, ir para os exercícios':'Próxima parte')+'</button>';
+    h+='</div><div class="row" style="flex-wrap:wrap;margin-top:8px">';
+    if(st.p>0)h+='<button class="btn ghost" data-act="apprev">Parte anterior</button>';
+    if(can)h+='<button class="btn ghost" data-act="'+(last?'aulaend':'apnext')+'">'+(last?'Pular prática, ir para os exercícios':'Pular prática')+'</button>';
+    h+='</div>';
+    return h;
+  }
+  var q=st.q;
+  if(q.i>=q.qs.length){
+    var okAll=q.ok>=Math.ceil(q.qs.length*0.8);
+    h+='<div class="'+(okAll?'okbox':'warnbox')+'"><strong class="num">'+q.ok+' de '+q.qs.length+' certas.</strong>'+(okAll?'<p class="small">Muito bem. Pode seguir.</p>':'<p class="small">Veja as que errou abaixo e, se quiser, treine de novo.</p>')+'</div>';
+    if(q.miss.length)h+='<section class="card"><h3>Para fixar</h3><div class="list">'+q.miss.map(function(x){return '<div class="row" style="align-items:center"><span class="grow">'+emoW(x[0])+'<strong>'+esc(x[0])+'</strong> = '+esc(x[1])+'</span>'+sayBtnM(x[0])+'</div>';}).join('')+'</div></section>';
+    h+='<div class="row" style="flex-wrap:wrap;margin-top:8px"><button class="btn primary grow" data-act="'+(last?'aulaend':'apnext')+'">'+(last?'Terminei a aula, ir para os exercícios':'Próxima parte')+'</button><button class="btn" data-act="apprac">Treinar de novo</button><button class="btn ghost" data-act="apprev">Rever esta parte</button></div>';
+    return h;
+  }
+  var x=q.qs[q.i],p;
+  h+=vcBar(q.i+(q.sel!=null?1:0),q.qs.length);
+  if(x.kind==='en')p='<p class="small muted">O que significa?</p><p style="font-size:22px;margin:6px 0">'+emoW(x.en)+'<strong>'+esc(x.en)+'</strong> '+sayBtnM(x.en)+'</p>';
+  else p='<p class="small muted">Como se diz em inglês?</p><p style="font-size:22px;margin:6px 0"><strong>'+esc(x.pt)+'</strong></p>';
+  h+='<section class="card">'+p+'<div class="list" style="margin-top:10px">'+x.o.map(function(o,k){
+    var cls='opt';if(q.sel!=null)cls='opt'+(k===x.a?' right':k===q.sel?' wrong':'');
+    return '<button class="'+cls+'" data-act="apopt" data-k="'+k+'"'+(q.sel!=null?' disabled':'')+'>'+esc(o)+(q.sel!=null&&k===x.a?' ✓':'')+'</button>';
+  }).join('')+'</div></section>';
+  if(q.sel!=null){
+    var okk=q.sel===x.a;
+    h+='<div class="'+(okk?'okbox':'warnbox')+'"><strong>'+(okk?'Certo!':'Não foi dessa vez.')+'</strong><div class="row" style="align-items:center"><span class="grow">'+emoW(x.en)+'<strong>'+esc(x.en)+'</strong> = '+esc(x.pt)+'</span>'+sayBtnM(x.en)+'</div></div>';
+    h+='<button class="btn primary" data-act="apqnext">'+(q.i+1>=q.qs.length?'Ver resultado':'Próxima')+'</button>';
+  }
+  return h;
+}
+function apSaveVp(n,p){var d=Object.assign({},prog(n),{kind:'progress',n:n,vp:p});return save(pid(n),d);}
+function apAct(a,t){
+  var v=S.view,n=v.unit,D=S.units[n];if(!D||D==='loading')return;
+  var les=D.lessons[0],P=apParts(les),st=apSt(n,P.length);
+  try{window.speechSynthesis.cancel();}catch(e){}
+  if(a==='apprac'){var qs=apQs(P[st.p]);if(qs.length<2){st.m='read';render();return;}st.m='quiz';st.q={qs:qs,i:0,sel:null,ok:0,miss:[]};render();window.scrollTo(0,0);}
+  else if(a==='apopt'){
+    var q=st.q;if(!q||q.sel!=null)return;
+    var x=q.qs[q.i];q.sel=+t.dataset.k;bump();
+    if(q.sel===x.a)q.ok++;else q.miss.push([x.en,x.pt]);
+    render();
+  }
+  else if(a==='apqnext'){var q2=st.q;q2.i++;q2.sel=null;render();window.scrollTo(0,0);}
+  else if(a==='apnext'){st.p=Math.min(P.length-1,st.p+1);st.m='read';st.q=null;apSaveVp(n,st.p);window.scrollTo(0,0);}
+  else if(a==='apprev'){if(st.m==='quiz'){st.m='read';st.q=null;}else st.p=Math.max(0,st.p-1);render();window.scrollTo(0,0);}
+}
+
 /* ---------- ações ---------- */
 function parseScore(txt,max){var x=parseFloat(String(txt).replace(',','.'));if(isNaN(x)||x<0||x>max)return null;return Math.round(x*10)/10;}
 function act(a,t){
@@ -2803,6 +2941,7 @@ function act(a,t){
    case 'wrsend':wrSend();break;
    case 'wrnew':{var e1=S.ex;if(e1){e1.res=null;e1.err='';render();window.scrollTo(0,0);}break;}
    case 'trask':S.confirmReset='treino';render();break;
+   case 'apprac':case 'apnext':case 'apprev':case 'apopt':case 'apqnext':apAct(a,t);break;
    case 'vrec':case 'vstop':case 'vspeak':case 'vhands':case 'vplay':voiceAct(a);break;
    case 'pmic':case 'prec':case 'pstop':case 'pclose':case 'pplay':psAct(a,t);break;
    case 'rpstart':case 'rprec':case 'rpstop':case 'rpskip':case 'rpnext':case 'rpback':case 'rpplay':rpAct(a,t);break;
