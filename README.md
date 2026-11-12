@@ -32,5 +32,8 @@ Os nomes dos modelos mudam com o tempo. Se o teste disser que o modelo não exis
 - A **aula de vocabulário** de cada unidade vem em 2 a 3 partes, por tema. Depois de cada parte há um mini-treino (até 6 perguntas) só com as palavras dela, e os exercícios da unidade ficam no fim. A parte em que você parou fica salva.
 - As palavras concretas têm emoji ao lado, nas aulas de vocabulário, na lista e no quiz. O áudio e a comparação de voz ignoram o emoji.
 
+## Músicas
+Em **Treino → Músicas** há 10 músicas em inglês. O vídeo oficial do YouTube toca dentro do app, a letra sincronizada (do LRCLIB, um banco aberto da comunidade) acompanha o vídeo, e cada linha tem tradução, pronúncia das palavras difíceis, som e microfone. A tradução usa a sua chave de IA. As letras não fazem parte do app: são buscadas na hora e guardadas só no aparelho. Precisa de internet.
+
 ## Progresso
 O progresso fica salvo no navegador. Em **Ajustes**, use **Exportar progresso** para baixar um backup e **Importar progresso** para restaurar em outro aparelho. Limpar os dados do navegador apaga o progresso, por isso exporte de vez em quando.

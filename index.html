@@ -132,6 +132,20 @@ input.wide,textarea.wide{width:100%;font:inherit;color:var(--ink);background:var
 .opt[disabled]{color:var(--ink);cursor:default}
 @media (prefers-reduced-motion:no-preference){.card,.item,.step{transition:border-color .15s}}
 .emo{margin-right:6px;font-size:1.05em}
+#sobox{position:fixed;top:0;left:0;right:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+#sobox[hidden]{display:none}
+.sobar{display:flex;align-items:center;gap:8px;padding:2px 8px;min-height:48px}
+.sobar .btn{white-space:nowrap;flex:none}
+.sotl{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.soyw{width:min(100%,356px);height:200px;margin:0 auto;background:#000}
+.soyw iframe{width:100%;height:100%;display:block}
+.sosp{height:calc(266px + env(safe-area-inset-top,0px))}
+.sol{border-bottom:1px solid var(--line)}
+.solt{display:block;width:100%;text-align:left;background:none;border:0;padding:10px 8px;font:inherit;color:inherit;cursor:pointer}
+.sol .en{display:block;font-size:17px;line-height:1.35}
+.sol .pt{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.sol.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.sod{padding:2px 8px 12px}
 details.card>summary{cursor:pointer;display:flex;gap:8px;align-items:center;justify-content:space-between}
 .vbar{display:flex;flex-direction:column;gap:8px}
 .vmic{display:inline-flex;align-items:center;justify-content:center;gap:8px}
@@ -1963,6 +1977,7 @@ function ditNext(){
 function practice(){
   if(S.dit)return ditScreen();
   if(S.rp)return rpScreen();
+  if(S.so)return soScreen();
   if(S.lis)return lisScreen();
   if(S.vid)return vidScreen();
   if(S.ex)return exScreen();
@@ -1980,7 +1995,7 @@ function practice(){
     '<div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="ditstart" data-n="mix">Mistura das unidades abertas</button></div>'+
     '<p class="small muted">Ou escolha uma unidade:</p><div class="row" style="flex-wrap:wrap">'+
     UNITS.slice(0,20).map(function(u){return unlocked(u.n)?'<button class="btn" data-act="ditstart" data-n="'+u.n+'" aria-label="Ditado da unidade '+u.n+'">'+u.n+'</button>':'';}).join('')+'</div></section>';
-  return h+rpMenu()+vcMenu()+gxMenu()+ueMenu()+exMenu()+laMenu()+lisMenu()+vidMenu()+freeCards()+trainResetBox();
+  return h+soMenu()+rpMenu()+vcMenu()+gxMenu()+ueMenu()+exMenu()+laMenu()+lisMenu()+vidMenu()+freeCards()+trainResetBox();
 }
 function ditScreen(){
   var d=S.dit,tot=d.items.length;
@@ -2042,6 +2057,7 @@ function go(view){
   if(S.chat&&!view.chat){if(S.chat.busy&&S.chat.ctl)S.chat.ctl.abort();voiceLeave();S.chat=null;}
   if(S.rp&&(view.tab!=='practice'||view.chat||view.unit!=null))rpHalt();
   if(PS.text)psClose();
+  if(S.so&&(view.tab!=='practice'||view.chat||view.unit!=null)){soHalt();S.so=null;}
   var ae=document.activeElement;if(ae&&app.contains(ae)&&ae.blur)ae.blur();
   S.view=view;S.confirmReset=null;S.reveal=false;S.rv=null;S.drafts.rv='';S.exAns=null;S.testRes=null;window.scrollTo(0,0);render();}
 
@@ -2863,6 +2879,241 @@ function apAct(a,t){
   else if(a==='apprev'){if(st.m==='quiz'){st.m='read';st.q=null;}else st.p=Math.max(0,st.p-1);render();window.scrollTo(0,0);}
 }
 
+/* ---------- músicas: vídeo embutido + letra sincronizada + tradução e pronúncia ---------- */
+var SONGS=[
+ {id:'wonderful',a:'Louis Armstrong',t:'What a Wonderful World',v:'rBrd_3VMC3c',d:139,lv:'B1',tag:'cores, natureza e adjetivos simples'},
+ {id:'letitbe',a:'The Beatles',t:'Let It Be',v:'QDYfEBY9NM4',d:243,lv:'B1',tag:'frases curtas e repetidas'},
+ {id:'leanonme',a:'Bill Withers',t:'Lean on Me',v:'gOZgo8gMIoM',d:260,lv:'B1',tag:'ajuda e amizade, expressões do dia a dia'},
+ {id:'allofme',a:'John Legend',t:'All of Me',v:'450p7goxZqg',d:307,lv:'B1',tag:'sentimentos e elogios'},
+ {id:'perfect',a:'Ed Sheeran',t:'Perfect',v:'2Vv-BfVoq4g',d:282,lv:'B1+',tag:'história de amor, passado e presente'},
+ {id:'justthe',a:'Bruno Mars',t:'Just the Way You Are',v:'LjhCEhWiKXk',d:237,lv:'B1+',tag:'elogios e expressões comuns'},
+ {id:'someonelike',a:'Adele',t:'Someone Like You',v:'hLQl3WQQoQ0',d:285,lv:'B2',tag:'passado, arrependimentos e relacionamentos'},
+ {id:'someoneyou',a:'Lewis Capaldi',t:'Someone You Loved',v:'zABLecsR5UE',d:185,lv:'B2',tag:'would e could'},
+ {id:'firework',a:'Katy Perry',t:'Firework',v:'QGJuMBdaqIw',d:233,lv:'B2',tag:'motivação e autoestima'},
+ {id:'fixyou',a:'Coldplay',t:'Fix You',v:'k4V3Mo61fJM',d:294,lv:'B2',tag:'metáforas'}
+];
+var SO={yt:null,ready:false,loading:false,box:null,tick:null,last:-1,stopAt:null,gen:0};
+function soStore(){try{return JSON.parse(localStorage.getItem('ic_so')||'{}')||{};}catch(e){return {};}}
+function soSave(id,d){try{var s=soStore();s[id]=d;localStorage.setItem('ic_so',JSON.stringify(s));}catch(e){}}
+function soById(id){for(var i=0;i<SONGS.length;i++)if(SONGS[i].id===id)return SONGS[i];return null;}
+function soParse(lrc){
+  var out=[];
+  String(lrc||'').split('\n').forEach(function(ln){
+    var m=ln.match(/^((?:\[\d+:\d+(?:[.:]\d+)?\])+)\s*(.*)$/);if(!m)return;
+    var txt=m[2].replace(/\s+/g,' ').trim();if(!txt)return;
+    var re=/\[(\d+):(\d+)(?:[.:](\d+))?\]/g,x;
+    while((x=re.exec(m[1]))){var fr=x[3]?parseFloat('0.'+x[3]):0;out.push([+x[1]*60+ +x[2]+fr,txt]);}
+  });
+  out.sort(function(p,q){return p[0]-q[0];});
+  return out;
+}
+function soFind(sg){
+  var url='https://lrclib.net/api/search?artist_name='+encodeURIComponent(sg.a)+'&track_name='+encodeURIComponent(sg.t);
+  return fetch(url).then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json();}).then(function(j){
+    var ar=sg.a.toLowerCase().split(' ').pop(),tw=sg.t.toLowerCase().split(' ')[0];
+    var all=(j||[]).filter(function(x){return x.syncedLyrics;});
+    var good=all.filter(function(x){return String(x.artistName||'').toLowerCase().indexOf(ar)>=0&&String(x.trackName||'').toLowerCase().indexOf(tw)>=0;});
+    var pool=good.length?good:all;if(!pool.length)throw new Error('none');
+    pool.sort(function(p,q){return Math.abs((p.duration||0)-sg.d)-Math.abs((q.duration||0)-sg.d);});
+    var b=pool[0],lines=soParse(b.syncedLyrics);if(lines.length<4)throw new Error('none');
+    return {lid:b.id,dur:b.duration||0,lines:lines};
+  });
+}
+/* player do YouTube (fica fora do #app para não recarregar a cada tela) */
+function soBox(){
+  if(SO.box)return SO.box;
+  var b=document.createElement('div');b.id='sobox';b.hidden=true;
+  b.innerHTML='<div class="sobar"><button type="button" class="btn ghost" data-act="soback">'+ic(I.back,18)+' Músicas</button><span class="sotl" id="sotl"></span></div><div class="soyw"><div id="soyt"></div></div>';
+  b.addEventListener('click',function(e){var x=e.target.closest&&e.target.closest('[data-act]');if(x)act(x.dataset.act,x);});
+  document.body.appendChild(b);SO.box=b;return b;
+}
+function soApi(cb){
+  if(window.YT&&window.YT.Player){cb();return;}
+  if(SO.loading){SO.q.push(cb);return;}
+  SO.loading=true;SO.q=[cb];
+  var prev=window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady=function(){try{if(prev)prev();}catch(e){}var q=SO.q;SO.q=[];q.forEach(function(f){f();});};
+  var s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';
+  s.onerror=function(){SO.loading=false;if(S.so){S.so.err='Não consegui carregar o player do YouTube. Confira a internet.';render();}};
+  document.head.appendChild(s);
+}
+function soMount(sg){
+  var box=soBox();box.hidden=false;document.body.classList.add('soon');
+  var tl=document.getElementById('sotl');if(tl)tl.textContent=sg.t+' · '+sg.a;
+  var my=++SO.gen;
+  soApi(function(){
+    if(my!==SO.gen||!S.so||S.so.id!==sg.id)return;
+    if(SO.yt){try{SO.yt.destroy();}catch(e){}SO.yt=null;}
+    var holder=document.getElementById('soyt');
+    if(!holder){var w=box.querySelector('.soyw');holder=document.createElement('div');holder.id='soyt';w.appendChild(holder);}
+    try{
+      SO.yt=new window.YT.Player('soyt',{width:'100%',height:'100%',videoId:sg.v,playerVars:{playsinline:1,rel:0,modestbranding:1,origin:location.origin},events:{
+        onReady:function(){SO.ready=true;},
+        onError:function(){if(S.so){S.so.err='Este vídeo não pode ser tocado aqui. Tente outra música.';render();}}
+      }});
+    }catch(e){if(S.so){S.so.err='Não consegui abrir o player.';render();}}
+  });
+  if(SO.tick)clearInterval(SO.tick);
+  SO.last=-1;SO.tick=setInterval(soTick,200);
+}
+function soHalt(){
+  SO.gen++;
+  if(SO.tick){clearInterval(SO.tick);SO.tick=null;}
+  if(SO.yt){try{SO.yt.destroy();}catch(e){}SO.yt=null;}
+  SO.ready=false;SO.stopAt=null;SO.last=-1;
+  if(SO.box){SO.box.hidden=true;var w=SO.box.querySelector('.soyw');if(w)w.innerHTML='<div id="soyt"></div>';}
+  document.body.classList.remove('soon');
+}
+function soPause(){try{if(SO.yt&&SO.yt.pauseVideo)SO.yt.pauseVideo();}catch(e){}SO.stopAt=null;}
+function soNow(){try{return SO.yt&&SO.yt.getCurrentTime?+SO.yt.getCurrentTime()||0:0;}catch(e){return 0;}}
+function soIdx(so,v){
+  var L=so.lines,lo=-1;
+  for(var i=0;i<L.length;i++){if(L[i][0]+so.off<=v)lo=i;else break;}
+  return lo;
+}
+function soTick(){
+  var so=S.so;if(!so||!so.lines||!SO.yt)return;
+  var v=soNow();
+  if(SO.stopAt!=null&&v>=SO.stopAt){soPause();}
+  var k=soIdx(so,v);
+  var cur=document.querySelector('#solyr .sol.on');
+  if(k===SO.last&&(k<0||cur))return;
+  SO.last=k;
+  var prev=document.querySelector('#solyr .sol.on');if(prev)prev.classList.remove('on');
+  if(k<0)return;
+  var el=document.querySelector('#solyr .sol[data-i="'+k+'"]');
+  if(el){el.classList.add('on');if(so.follow){var y=el.getBoundingClientRect().top+window.pageYOffset-300;window.scrollTo({top:Math.max(0,y),behavior:'smooth'});}}
+}
+function soTrText(so,i){var t=so.tr&&so.tr[i];return t?t.pt:'';}
+function soLine(so,i){
+  var l=so.lines[i],open=so.open===i,tr=so.tr&&so.tr[i];
+  var h='<div class="sol'+(open?' open':'')+'" data-i="'+i+'"><button type="button" class="solt" data-act="soline" data-i="'+i+'" aria-expanded="'+(open?'true':'false')+'"><span class="en">'+esc(l[1])+'</span>'+(tr?'<span class="pt">'+esc(tr.pt)+'</span>':'')+'</button>';
+  if(open){
+    h+='<div class="sod">';
+    if(!tr)h+='<p class="small muted">'+(so.trBusy?'Traduzindo a música…':'Sem tradução ainda. Use o botão "Traduzir a música" acima.')+'</p>';
+    if(tr&&tr.w&&tr.w.length){
+      h+='<div class="list">'+tr.w.map(function(w){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(w[0])+'</strong> <span class="small muted">lê-se</span> <em>'+esc(w[1])+'</em><span class="small muted" style="display:block">'+esc(w[2]||'')+'</span></span>'+sayBtnM(w[0])+'</div>';}).join('')+'</div>';
+    }
+    h+='<div class="row" style="flex-wrap:wrap;align-items:center;margin-top:8px"><span class="small muted">Linha inteira:</span>'+sayBtnM(l[1])+'<button type="button" class="btn" data-act="soplay" data-i="'+i+'">▶ Ouvir na música</button><button type="button" class="btn ghost" data-act="sosync" data-i="'+i+'">Esta linha começou agora</button></div>';
+    h+='</div>';
+  }
+  return h+'</div>';
+}
+function soScreen(){
+  var so=S.so,h='';
+  if(!so.id){
+    h+='<header><button class="btn ghost" data-act="soexit">'+ic(I.back,18)+' Treino</button><div class="eyebrow" style="margin-top:8px">Treino</div><h1>Músicas</h1><p class="muted small" style="margin-top:6px">Ouça a música aqui mesmo, acompanhe a letra e toque em uma linha para ver a tradução e como pronunciar. Precisa de internet.</p></header>';
+    h+='<div class="list">'+SONGS.map(function(s,k){
+      var st=soStore()[s.id];
+      return '<button class="item" data-act="soopen" data-id="'+s.id+'"><span class="badge">'+(k+1)+'</span><span class="grow"><strong>'+esc(s.t)+'</strong><span class="small muted" style="display:block">'+esc(s.a)+' · '+s.lv+' · '+esc(s.tag)+'</span></span>'+(st&&st.tr?'<span class="small muted">traduzida</span>':'')+'</button>';
+    }).join('')+'</div>';
+    return h;
+  }
+  var sg=soById(so.id);
+  h+='<div class="sosp"></div>';
+  if(so.err)h+='<div class="warnbox"><p class="small">'+esc(so.err)+'</p>'+(so.lines?'':'<button class="btn" data-act="soretry">Tentar de novo</button>')+'</div>';
+  if(so.loading)h+='<p class="muted" style="margin:16px 0">Buscando a letra…</p>';
+  if(so.lines){
+    var n=Object.keys(so.tr||{}).length,tot=so.lines.length;
+    h+='<div class="row" style="flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0">';
+    if(n<tot)h+='<button class="btn primary" data-act="sotr"'+(so.trBusy?' disabled':'')+'>'+(so.trBusy?'Traduzindo… '+n+'/'+tot:(n?'Continuar a tradução ('+n+'/'+tot+')':'Traduzir a música'))+'</button>';
+    h+='<button class="btn'+(so.follow?' primary':'')+'" data-act="sofollow">'+(so.follow?'Seguindo a letra':'Seguir a letra')+'</button></div>';
+    if(so.trErr)h+='<div class="warnbox"><p class="small">'+esc(so.trErr)+'</p></div>';
+    h+='<div class="row" style="align-items:center;gap:6px;flex-wrap:wrap"><span class="small muted">Letra fora de tempo?</span><button class="btn" style="min-height:38px;padding:4px 12px" data-act="sooff" data-d="-0.5" aria-label="Letra 0,5 segundo mais cedo">−0,5s</button><span class="small num" style="min-width:56px;text-align:center">'+(so.off>0?'+':'')+so.off.toFixed(1)+' s</span><button class="btn" style="min-height:38px;padding:4px 12px" data-act="sooff" data-d="0.5" aria-label="Letra 0,5 segundo mais tarde">+0,5s</button></div>';
+    h+='<p class="small muted" style="margin:6px 0 10px">Dica: toque numa linha e use "Esta linha começou agora" quando ouvir ela começar. O app acerta o tempo sozinho.</p>';
+    h+='<div id="solyr">'+so.lines.map(function(l,i){return soLine(so,i);}).join('')+'</div>';
+    h+='<p class="small muted" style="margin-top:14px">A letra vem do LRCLIB, um banco aberto da comunidade, e fica guardada só neste aparelho. Ela pode ter erros.</p>';
+  }
+  return h;
+}
+function soMenu(){
+  return '<section class="card"><h3>Músicas</h3><p class="small">Dez músicas para aprender inglês: o vídeo toca aqui, a letra acompanha, e você vê a tradução e como pronunciar as palavras difíceis.</p><button class="btn primary" data-act="soenter">Abrir as músicas</button></section>';
+}
+function soOpen(id){
+  var sg=soById(id);if(!sg)return;
+  var st=soStore()[id]||{};
+  var so=S.so;so.id=id;so.err='';so.lines=null;so.tr=null;so.open=null;so.off=st.off||0;so.follow=true;so.trBusy=false;so.trErr='';so.loading=false;
+  if(st.lines&&st.lines.length){so.lines=st.lines;so.lid=st.lid;so.tr=(st.tr&&st.lid===st.trlid)?st.tr:{};}
+  soMount(sg);
+  if(!so.lines)soLoad(sg);
+  render();window.scrollTo(0,0);
+}
+function soLoad(sg){
+  var so=S.so;so.loading=true;so.err='';
+  soFind(sg).then(function(r){
+    if(!S.so||S.so.id!==sg.id)return;
+    so.loading=false;so.lines=r.lines;so.lid=r.lid;so.tr={};
+    soSave(sg.id,{lid:r.lid,lines:r.lines,off:so.off,tr:{},trlid:r.lid});
+    render();
+  }).catch(function(e){
+    if(!S.so||S.so.id!==sg.id)return;
+    so.loading=false;
+    so.err=(e&&e.message==='none')?'Não achei a letra sincronizada desta música.':'Não consegui buscar a letra. Confira a internet e tente de novo.';
+    render();
+  });
+}
+function soPersist(){var so=S.so;if(!so||!so.id)return;soSave(so.id,{lid:so.lid,lines:so.lines,off:so.off,tr:so.tr||{},trlid:so.lid});}
+var SOP='You are helping a Brazilian Portuguese speaker (English level B1/B2) study a song. For each numbered line below, return its natural Brazilian Portuguese translation (meaning, not word for word) and up to 3 of its hardest or most useful words. For each word give: the English word, how a Brazilian reads it aloud written with Portuguese spelling and hyphens between syllables (for example: "wonderful" = "uân-der-fol"), and a short Portuguese meaning. Reply with ONLY a JSON array, no markdown, one object per line, in this exact shape: [{"n":1,"pt":"...","w":[["word","pronúncia","significado"]]}]. Use "w":[] when the line has no hard words. Do not add any comment.';
+async function soTranslate(){
+  var so=S.so;if(!so||!so.lines||so.trBusy)return;
+  if(!S.sample){so.trErr='Para traduzir, o professor IA precisa estar ligado. Configure a chave em Ajustes.';render();return;}
+  so.trBusy=true;so.trErr='';so.tr=so.tr||{};render();
+  var my=so.id,CH=18,L=so.lines;
+  try{
+    for(var s=0;s<L.length;s+=CH){
+      var need=false,k;for(k=s;k<Math.min(L.length,s+CH);k++)if(!so.tr[k]){need=true;break;}
+      if(!need)continue;
+      var lines='',idx=[];
+      for(k=s;k<Math.min(L.length,s+CH);k++){idx.push(k);lines+=(idx.length)+'. '+L[k][1]+'\n';}
+      var got=null,tries=0;
+      while(!got&&tries<2){
+        tries++;
+        var r=await S.sample([{role:'user',content:SOP+'\n\nSong: "'+soById(my).t+'" by '+soById(my).a+'\n\nLines:\n'+lines}],{cache:false,modelTier:'quick'});
+        var txt=String(r.text||'').replace(/```json|```/g,'');
+        var a=txt.indexOf('['),b=txt.lastIndexOf(']');
+        try{var arr=JSON.parse(txt.slice(a,b+1));if(Array.isArray(arr)&&arr.length)got=arr;}catch(e){}
+      }
+      if(!S.so||S.so.id!==my)return;
+      if(!got)throw {code:'invalid_json'};
+      got.forEach(function(o){
+        var j=idx[(+o.n||0)-1];if(j==null||!o.pt)return;
+        so.tr[j]={pt:String(o.pt),w:(Array.isArray(o.w)?o.w:[]).slice(0,3).filter(function(w){return Array.isArray(w)&&w[0];}).map(function(w){return [String(w[0]),String(w[1]||''),String(w[2]||'')];})};
+      });
+      soPersist();bump();render();
+    }
+    so.trBusy=false;
+  }catch(e){
+    so.trBusy=false;
+    so.trErr=(e&&e.code==='invalid_json')?'A tradução veio fora do formato. Toque em "Continuar a tradução".':chatErr(e&&e.code);
+  }
+  if(S.so&&S.so.id===my)render();
+}
+function soAct(a,t){
+  var so=S.so;
+  if(a==='soenter'){S.so={id:null};render();window.scrollTo(0,0);return;}
+  if(!so)return;
+  if(a==='soexit'){soHalt();S.so=null;render();window.scrollTo(0,0);return;}
+  if(a==='soopen'){soOpen(t.dataset.id);return;}
+  if(a==='soback'){soHalt();so.id=null;so.lines=null;so.err='';render();window.scrollTo(0,0);return;}
+  if(a==='soretry'){var sg=soById(so.id);if(sg){so.err='';soMount(sg);soLoad(sg);render();}return;}
+  if(a==='soline'){var i=+t.dataset.i;so.open=so.open===i?null:i;render();return;}
+  if(a==='soplay'){
+    var j=+t.dataset.i,nx=so.lines[j+1];
+    try{if(SO.yt){SO.yt.seekTo(Math.max(0,so.lines[j][0]+so.off-0.3),true);SO.yt.playVideo();SO.stopAt=nx?nx[0]+so.off:null;}}catch(e){}
+    return;
+  }
+  if(a==='sosync'){
+    var q=+t.dataset.i,v=soNow();
+    if(!SO.yt||!v){flash('Toque em play no vídeo e use o botão quando a linha começar.');return;}
+    so.off=Math.round((v-so.lines[q][0])*10)/10;soPersist();SO.last=-2;flash('Tempo da letra ajustado.');render();return;
+  }
+  if(a==='sooff'){so.off=Math.round((so.off+parseFloat(t.dataset.d))*10)/10;soPersist();SO.last=-2;render();return;}
+  if(a==='sofollow'){so.follow=!so.follow;SO.last=-2;render();return;}
+  if(a==='sotr'){soTranslate();return;}
+}
+window.addEventListener('touchmove',function(){if(S.so&&S.so.follow&&S.so.lines){S.so.follow=false;var b=document.querySelector('[data-act="sofollow"]');if(b){b.textContent='Seguir a letra';b.classList.remove('primary');}}},{passive:true});
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.say');if(b&&S.so)soPause();},true);
+
 /* ---------- ações ---------- */
 function parseScore(txt,max){var x=parseFloat(String(txt).replace(',','.'));if(isNaN(x)||x<0||x>max)return null;return Math.round(x*10)/10;}
 function act(a,t){
@@ -2942,6 +3193,7 @@ function act(a,t){
    case 'wrnew':{var e1=S.ex;if(e1){e1.res=null;e1.err='';render();window.scrollTo(0,0);}break;}
    case 'trask':S.confirmReset='treino';render();break;
    case 'apprac':case 'apnext':case 'apprev':case 'apopt':case 'apqnext':apAct(a,t);break;
+   case 'soenter':case 'soexit':case 'soopen':case 'soback':case 'soretry':case 'soline':case 'soplay':case 'sosync':case 'sooff':case 'sofollow':case 'sotr':soAct(a,t);break;
    case 'vrec':case 'vstop':case 'vspeak':case 'vhands':case 'vplay':voiceAct(a);break;
    case 'pmic':case 'prec':case 'pstop':case 'pclose':case 'pplay':psAct(a,t);break;
    case 'rpstart':case 'rprec':case 'rpstop':case 'rpskip':case 'rpnext':case 'rpback':case 'rpplay':rpAct(a,t);break;
