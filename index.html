@@ -3058,9 +3058,26 @@ function soLoad(sg){
   });
 }
 function soPersist(){var so=S.so;if(!so||!so.id)return;soSave(so.id,{lid:so.lid,lines:so.lines,off:so.off,tr:so.tr||{},trlid:so.lid});}
-var PSTYLE='Pronunciation style (the same used elsewhere in this app): write how a Brazilian Portuguese speaker would read the English aloud, using Portuguese spelling, hyphens between syllables, and the stressed syllable in CAPITAL letters. Keep the letter h for the English h sound. Examples: afraid = "â-FREID", of = "âv", I = "ai", you = "iu", the = "dhâ", have = "hév", going = "GOU-in", too = "TU", resign = "ri-ZAIN", download = "DAUN-loud".';
-var SOP='You are helping a Brazilian Portuguese speaker (English level B1/B2) study a song. For each numbered line below return: pt = its natural Brazilian Portuguese translation (meaning, not word for word); p = the whole line respelled for pronunciation, word by word in the same order, separated by single spaces; w = up to 3 of its hardest or most useful words, each as [English word, pronunciation, short Portuguese meaning]. '+PSTYLE+' Every word entry MUST have all three fields filled in; never leave one empty. Reply with ONLY a JSON array, no markdown, one object per line, in this exact shape: [{"n":1,"pt":"...","p":"...","w":[["word","pronúncia","significado"]]}]. Use "w":[] when the line has no hard words. Do not add any comment.';
-var SOPP='You help a Brazilian Portuguese speaker read English song lines aloud. For each numbered line below, write the whole line respelled for pronunciation, word by word in the same order, separated by single spaces. '+PSTYLE+' Reply with ONLY a JSON array, no markdown, in this exact shape: [{"n":1,"p":"..."}]. Do not add any comment.';
+function soStyle(){
+  var ks=Object.keys(PRON).filter(function(k){return /^[a-z]+$/.test(k)&&k.length>2;}).sort(),ex=[],step=Math.max(1,Math.floor(ks.length/42));
+  for(var q=0;q<ks.length&&ex.length<42;q+=step)ex.push(ks[q]+' = "'+PRON[ks[q]]+'"');
+  return 'Pronunciation style (the same used elsewhere in this app): write how a Brazilian Portuguese speaker would read the English aloud, using Portuguese spelling. Write syllables separated by hyphens, with the stressed syllable in CAPITAL letters and the other syllables in lowercase. Do not use accent marks. Use "â" for the weak vowel. Sounds: voiced th (the, they, them, this) = "dh"; unvoiced th (think, with) = "th"; the vowel in "I" = "ai"; ee/ea = "i"; oo = "u"; ay = "ei"; ow/ou = "au"; the o in "go" = "ou"; j and soft g = "dj"; ch = "tch"; sh = "sh"; keep h as "h" and r as "r". Never spell letter by letter. Examples from the app: '+ex.join('; ')+'.';
+}
+function soJson(txt,open,close){
+  txt=String(txt||'').replace(/```json|```/g,'');
+  var a=txt.indexOf(open),b=txt.lastIndexOf(close);
+  if(a>=0&&b>a){try{return JSON.parse(txt.slice(a,b+1));}catch(e){}}
+  if(open!=='[')return null;
+  var out=[],d=0,st=-1,k;
+  for(k=0;k<txt.length;k++){
+    var ch=txt.charAt(k);
+    if(ch==='{'){if(d===0)st=k;d++;}
+    else if(ch==='}'&&d>0){d--;if(d===0&&st>=0){try{out.push(JSON.parse(txt.slice(st,k+1)));}catch(e){}st=-1;}}
+  }
+  return out.length?out:null;
+}
+var SOP=function(){return 'You are helping a Brazilian Portuguese speaker (English level B1/B2) study a song. For each numbered line below return: pt = its natural Brazilian Portuguese translation (meaning, not word for word); p = the whole line respelled for pronunciation, word by word in the same order, separated by single spaces; w = up to 3 of its hardest or most useful words, each as [English word, pronunciation, short Portuguese meaning]. '+soStyle()+' Every word entry MUST have all three fields filled in; never leave one empty. Reply with ONLY a JSON array, no markdown, one object per line, in this exact shape: [{"n":1,"pt":"...","p":"...","w":[["word","pronúncia","significado"]]}]. Use "w":[] when the line has no hard words. Do not add any comment.';};
+var SOPP=function(){return 'You help a Brazilian Portuguese speaker read English song lines aloud. For each numbered line below, write the whole line respelled for pronunciation, word by word in the same order, separated by single spaces. '+soStyle()+' Reply with ONLY a JSON array, no markdown, in this exact shape: [{"n":1,"p":"..."}]. Do not add any comment.';};
 async function soTranslate(){
   var so=S.so;if(!so||!so.lines||so.trBusy)return;
   if(!S.sample){so.trErr='Para traduzir, o professor IA precisa estar ligado. Configure a chave em Ajustes.';render();return;}
@@ -3073,12 +3090,10 @@ async function soTranslate(){
       var lines='',idx=[];
       for(k=s;k<Math.min(L.length,s+CH);k++){idx.push(k);lines+=(idx.length)+'. '+L[k][1]+'\n';}
       var got=null,tries=0;
-      while(!got&&tries<2){
+      while(!got&&tries<3){
         tries++;
-        var r=await S.sample([{role:'user',content:SOP+'\n\nSong: "'+soById(my).t+'" by '+soById(my).a+'\n\nLines:\n'+lines}],{cache:false,modelTier:'quick'});
-        var txt=String(r.text||'').replace(/```json|```/g,'');
-        var a=txt.indexOf('['),b=txt.lastIndexOf(']');
-        try{var arr=JSON.parse(txt.slice(a,b+1));if(Array.isArray(arr)&&arr.length)got=arr;}catch(e){}
+        var r=await S.sample([{role:'user',content:SOP()+'\n\nSong: "'+soById(my).t+'" by '+soById(my).a+'\n\nLines:\n'+lines}],{cache:false,modelTier:'quick'});
+        var arr=soJson(r.text,'[',']');if(Array.isArray(arr)&&arr.length)got=arr;
       }
       if(!S.so||S.so.id!==my)return;
       if(!got)throw {code:'invalid_json'};
@@ -3114,11 +3129,10 @@ async function soFillP(so){
   try{
     for(var s=0;s<need.length;s+=18){
       var ch=need.slice(s,s+18),lines=ch.map(function(k,n){return (n+1)+'. '+L[k][1];}).join('\n'),got=null,tries=0;
-      while(!got&&tries<2){
+      while(!got&&tries<3){
         tries++;
-        var r=await S.sample([{role:'user',content:SOPP+'\n\nLines:\n'+lines}],{cache:false,modelTier:'quick'});
-        var txt=String(r.text||'').replace(/```json|```/g,''),a=txt.indexOf('['),b=txt.lastIndexOf(']');
-        try{var arr=JSON.parse(txt.slice(a,b+1));if(Array.isArray(arr)&&arr.length)got=arr;}catch(e){}
+        var r=await S.sample([{role:'user',content:SOPP()+'\n\nLines:\n'+lines}],{cache:false,modelTier:'quick'});
+        var arr=soJson(r.text,'[',']');if(Array.isArray(arr)&&arr.length)got=arr;
       }
       if(!S.so||S.so.id!==my)return;
       if(!got)throw {code:'invalid_json'};
