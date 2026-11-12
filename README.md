@@ -34,7 +34,7 @@ Os nomes dos modelos mudam com o tempo. Se o teste disser que o modelo não exis
 - As palavras concretas têm emoji ao lado, nas aulas de vocabulário, na lista e no quiz. O áudio e a comparação de voz ignoram o emoji.
 
 ## Músicas
-Em **Treino → Músicas** há 10 músicas em inglês. O vídeo oficial do YouTube toca dentro do app, a letra sincronizada (do LRCLIB, um banco aberto da comunidade) acompanha o vídeo, e cada linha tem tradução, pronúncia das palavras difíceis, som e microfone. A tradução usa a sua chave de IA. As letras não fazem parte do app: são buscadas na hora e guardadas só no aparelho. Precisa de internet.
+Em **Treino → Músicas** há 10 músicas em inglês. O vídeo oficial do YouTube toca dentro do app, a letra sincronizada (do LRCLIB, um banco aberto da comunidade) acompanha o vídeo, e cada linha tem tradução, pronúncia das palavras difíceis, som e microfone. A tradução usa a sua chave de IA, e cada linha mostra também a pronúncia em português, no mesmo estilo das palavras (sílaba tônica em maiúsculas). As letras não fazem parte do app: são buscadas na hora e guardadas só no aparelho. Precisa de internet.
 
 ## Progresso
 O progresso fica salvo no navegador. Em **Ajustes**, use **Exportar progresso** para baixar um backup e **Importar progresso** para restaurar em outro aparelho. Limpar os dados do navegador apaga o progresso, por isso exporte de vez em quando.
