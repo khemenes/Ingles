@@ -2993,7 +2993,7 @@ function soLine(so,i){
     h+='<div class="sod">';
     if(!tr)h+='<p class="small muted">'+(so.trBusy?'Traduzindo a música…':'Sem tradução ainda. Use o botão "Traduzir a música" acima.')+'</p>';
     if(tr&&tr.w&&tr.w.length){
-      h+='<div class="list">'+tr.w.map(function(w){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(w[0])+'</strong> <span class="small muted">lê-se</span> <em>'+esc(w[1])+'</em><span class="small muted" style="display:block">'+esc(w[2]||'')+'</span></span>'+sayBtnM(w[0])+'</div>';}).join('')+'</div>';
+      h+='<div class="list">'+tr.w.map(function(w){return '<div class="row" style="align-items:center"><span class="grow"><strong>'+esc(w[0])+'</strong> <span class="small muted">lê-se</span> <em>'+esc(w[1])+'</em>'+(w[2]?'<span class="small muted" style="display:block">'+esc(w[2])+'</span>':'')+'</span>'+sayBtnM(w[0])+'</div>';}).join('')+'</div>';
     }
     h+='<div class="row" style="flex-wrap:wrap;align-items:center;margin-top:8px"><span class="small muted">Linha inteira:</span>'+sayBtnM(l[1])+'<button type="button" class="btn" data-act="soplay" data-i="'+i+'">▶ Ouvir na música</button><button type="button" class="btn ghost" data-act="sosync" data-i="'+i+'">Esta linha começou agora</button></div>';
     h+='</div>';
@@ -3037,6 +3037,7 @@ function soOpen(id){
   if(st.lines&&st.lines.length){so.lines=st.lines;so.lid=st.lid;so.tr=(st.tr&&st.lid===st.trlid)?st.tr:{};}
   soMount(sg);
   if(!so.lines)soLoad(sg);
+  else if(S.sample&&Object.keys(so.tr||{}).some(function(i){return so.tr[i].w.some(function(w){return !w[2];});})){var my=id;soFill(so).then(function(){if(S.so&&S.so.id===my){soPersist();render();}});}
   render();window.scrollTo(0,0);
 }
 function soLoad(sg){
@@ -3054,7 +3055,7 @@ function soLoad(sg){
   });
 }
 function soPersist(){var so=S.so;if(!so||!so.id)return;soSave(so.id,{lid:so.lid,lines:so.lines,off:so.off,tr:so.tr||{},trlid:so.lid});}
-var SOP='You are helping a Brazilian Portuguese speaker (English level B1/B2) study a song. For each numbered line below, return its natural Brazilian Portuguese translation (meaning, not word for word) and up to 3 of its hardest or most useful words. For each word give: the English word, how a Brazilian reads it aloud written with Portuguese spelling and hyphens between syllables (for example: "wonderful" = "uân-der-fol"), and a short Portuguese meaning. Reply with ONLY a JSON array, no markdown, one object per line, in this exact shape: [{"n":1,"pt":"...","w":[["word","pronúncia","significado"]]}]. Use "w":[] when the line has no hard words. Do not add any comment.';
+var SOP='You are helping a Brazilian Portuguese speaker (English level B1/B2) study a song. For each numbered line below, return its natural Brazilian Portuguese translation (meaning, not word for word) and up to 3 of its hardest or most useful words. For each word give: the English word, how a Brazilian reads it aloud written with Portuguese spelling and hyphens between syllables (for example: "wonderful" = "uân-der-fol"), and a short Portuguese meaning. Reply with ONLY a JSON array, no markdown, one object per line, in this exact shape: [{"n":1,"pt":"...","w":[["word","pronúncia","significado"]]}]. Every word entry MUST have all three fields filled in (word, pronunciation, Portuguese meaning); never leave one empty. Use "w":[] when the line has no hard words. Do not add any comment.';
 async function soTranslate(){
   var so=S.so;if(!so||!so.lines||so.trBusy)return;
   if(!S.sample){so.trErr='Para traduzir, o professor IA precisa estar ligado. Configure a chave em Ajustes.';render();return;}
@@ -3080,6 +3081,7 @@ async function soTranslate(){
         var j=idx[(+o.n||0)-1];if(j==null||!o.pt)return;
         so.tr[j]={pt:String(o.pt),w:(Array.isArray(o.w)?o.w:[]).slice(0,3).filter(function(w){return Array.isArray(w)&&w[0];}).map(function(w){return [String(w[0]),String(w[1]||''),String(w[2]||'')];})};
       });
+      await soFill(so);
       soPersist();bump();render();
     }
     so.trBusy=false;
@@ -3088,6 +3090,18 @@ async function soTranslate(){
     so.trErr=(e&&e.code==='invalid_json')?'A tradução veio fora do formato. Toque em "Continuar a tradução".':chatErr(e&&e.code);
   }
   if(S.so&&S.so.id===my)render();
+}
+async function soFill(so){
+  /* completa o significado das palavras em que a IA deixou em branco */
+  var miss={};
+  Object.keys(so.tr||{}).forEach(function(i){so.tr[i].w.forEach(function(w){if(!w[2])miss[w[0].toLowerCase()]=1;});});
+  var ws=Object.keys(miss);if(!ws.length||!S.sample)return;
+  try{
+    var r=await S.sample([{role:'user',content:'Give the short Brazilian Portuguese meaning (1 to 4 words) of each English word below, as sung in a song. Reply with ONLY a JSON object like {"word":"significado"}, no markdown.\n\n'+ws.join(', ')}],{cache:false,modelTier:'quick'});
+    var txt=String(r.text||'').replace(/```json|```/g,''),a=txt.indexOf('{'),b=txt.lastIndexOf('}'),m=JSON.parse(txt.slice(a,b+1)),mm={};
+    Object.keys(m).forEach(function(k){mm[k.toLowerCase()]=String(m[k]);});
+    Object.keys(so.tr).forEach(function(i){so.tr[i].w.forEach(function(w){if(!w[2]&&mm[w[0].toLowerCase()])w[2]=mm[w[0].toLowerCase()];});});
+  }catch(e){}
 }
 function soAct(a,t){
   var so=S.so;
