@@ -664,7 +664,7 @@ function home(){
   }else{
     h+='<section class="okbox"><strong>'+(levelClosed(1)===10&&closed(22)?(B2READY.length===10?'Todas as unidades e testes estão fechados. Parabéns!':'O B1+ está fechado. As próximas unidades do B2 estão sendo escritas e aparecem aqui quando ficarem prontas.'):'Nada pendente por enquanto.')+'</strong></section>';
   }
-  h+=weekCard();
+  h+=weekCard()+tmCard();
   var d=dueErrors().length;
   h+='<section class="card"><div class="row"><div class="grow"><h3>Revisão de erros</h3><p class="small muted">'+(d?'Falta rever '+d+' '+(d===1?'erro vencido':'erros vencidos')+' hoje.':'Nenhuma revisão vencida hoje.')+'</p></div><button class="btn" data-act="tab" data-tab="review">Abrir</button></div></section>';
   h+='<section class="card flat"><div class="eyebrow">Como funciona</div><p class="small">As unidades (B1, B1+ e B2) têm aula, exercícios corrigidos na hora, teste escrito e conversa com o professor IA, com relatório e erros que vão para a Revisão. Entre os níveis há um teste de passagem.</p>'+
@@ -694,7 +694,7 @@ function trailRows(a){
   for(var n=a;n<a+10;n++){
     var u=UNITS[n-1],ok=closed(n),lk=!unlocked(n);
     h+='<button class="item'+(lk?' locked':'')+'" data-act="'+(lk?'locked':'unit')+'" data-n="'+n+'"><span class="badge'+(ok?' ok':'')+'">'+(ok?ic(I.check,18):lk?ic(I.lock,18):dn(n))+'</span>'+
-      '<span class="grow"><strong>'+esc(u.title)+'</strong><span class="small muted" style="display:block;overflow-wrap:anywhere">'+esc(u.gram)+(b2ok(n)?'':' · em preparação')+'</span>'+(ok&&prog(n).test!=null&&prog(n).final!=null?'<span class="small num" style="display:block;margin-top:4px">Teste '+prog(n).test+'% · Conversa '+String(prog(n).final).replace('.',',')+'</span>':'')+'<span style="display:block;margin-top:8px">'+segBar(n)+'</span></span>'+
+      '<span class="grow"><strong>'+esc(u.title)+'</strong><span class="small muted" style="display:block;overflow-wrap:anywhere">'+esc(u.gram)+(b2ok(n)?'':' · em preparação')+'</span>'+tmRow(n)+(ok&&prog(n).test!=null&&prog(n).final!=null?'<span class="small num" style="display:block;margin-top:4px">Teste '+prog(n).test+'% · Conversa '+String(prog(n).final).replace('.',',')+'</span>':'')+'<span style="display:block;margin-top:8px">'+segBar(n)+'</span></span>'+
       '<span class="small num" style="min-width:3.2em;text-align:right">'+pf(unitPct(n))+'</span></button>';
   }
   return h;
@@ -703,7 +703,7 @@ function passageRow(n){
   var u=UNITS[n-1],ok=closed(n),lk=!unlocked(n),p=prog(n);
   var sub=lk?(!b2ok(n)?'Em preparação: abre quando todas as unidades do B2 estiverem escritas.':'Abre quando as 10 unidades do '+lvName(n)+' estiverem fechadas.'):ok?'Aprovado':'Teste escrito (16 de 20) e conversa final (nota 7).';
   return '<button class="item'+(lk?' locked':'')+'" data-act="'+(lk?'locked':'unit')+'" data-n="'+n+'"><span class="badge'+(ok?' ok':'')+'">'+(ok?ic(I.check,18):lk?ic(I.lock,18):'★')+'</span>'+
-    '<span class="grow"><strong>'+esc(u.title)+'</strong><span class="small muted" style="display:block">'+sub+'</span>'+(p.test!=null||p.final!=null?'<span class="small num" style="display:block;margin-top:4px">Teste '+(p.test==null?'—':p.test+'%')+' · Conversa '+(p.final==null?'—':String(p.final).replace('.',','))+'</span>':'')+'</span>'+
+    '<span class="grow"><strong>'+esc(u.title)+'</strong><span class="small muted" style="display:block">'+sub+'</span>'+tmRow(n)+(p.test!=null||p.final!=null?'<span class="small num" style="display:block;margin-top:4px">Teste '+(p.test==null?'—':p.test+'%')+' · Conversa '+(p.final==null?'—':String(p.final).replace('.',','))+'</span>':'')+'</span>'+
     '<span class="small num" style="min-width:3.2em;text-align:right">'+pf(unitPct(n))+'</span></button>';
 }
 function trail(){
@@ -753,7 +753,7 @@ function unitScreen(n){
   for(var L=0;L<4;L++){g+='<div class="seg">';for(var k=0;k<4;k++)g+='<i class="'+(stepDone(p,L*4+k)?'on':'')+'"></i>';g+='</div>';}
   g+='</div>';
   h+='<section class="card"><div class="row"><div class="big num">'+pf(unitPct(n))+'</div><p class="small muted grow">'+(left?'Faltam '+left+' de 16 passos ('+pf(100-unitPct(n))+').':'Unidade fechada.')+'</p></div>'+g+
-    '<p class="small"><span class="muted">Gramática:</span> '+esc(u.gram)+'<br><span class="muted">Inglês prático:</span> '+esc(u.prat)+'</p></section>';
+    '<p class="small"><span class="muted">Gramática:</span> '+esc(u.gram)+'<br><span class="muted">Inglês prático:</span> '+esc(u.prat)+'</p>'+tmUnit(n)+'</section>';
   if(left===0){
     var ue=errors().filter(function(e){return e.unit===n&&!e.example;}),ud=ue.filter(function(e){return e.status==='done';}).length,fin=String(p.final).replace('.',',');
     h+='<section class="okbox"><strong>Unidade '+dn(n)+' fechada.</strong>'+
@@ -1471,7 +1471,7 @@ function trainReset(){
   });
   ids.forEach(function(k){remove(k);});
   Object.keys(S.drafts).forEach(function(k){if(/^(wr|ue)\d/.test(k))delete S.drafts[k];});
-  S.ue=null;S.la=null;S.fr=null;S.confirmReset=null;flash('Dados do Treino zerados.');render();
+  TM.t=0;tmFlush();S.ue=null;S.la=null;S.fr=null;S.confirmReset=null;flash('Dados do Treino zerados.');render();
 }
 function trainResetBox(){
   if(!settings().unlockAll)return '';
@@ -2298,6 +2298,58 @@ function chatEntry(n,L,p){
   else if(rep)h+='<div class="'+(L===3&&rep.nota<7?'warnbox':'okbox')+' small"><strong>Conversa concluída.</strong> Nota '+String(rep.nota).replace('.',',')+'.'+(L===3?(rep.nota>=7?' Aprovado.':' Abaixo de 7: faça uma nova conversa para fechar a unidade.'):'')+'</div><div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="step" data-i="'+(L*4+3)+'">Ver o relatório</button><button class="btn" data-act="chatnew">Nova conversa</button></div>';
   else h+='<button class="btn primary" data-act="chatstart">Começar a conversa</button>';
   return h;
+}
+
+/* ---------- tempo de estudo ---------- */
+var TM={u:{},t:0,d:{}},tmLast=Date.now(),tmAct=Date.now(),tmSv=0;
+try{var tmr=JSON.parse(localStorage.getItem('ic_time')||'null');if(tmr&&typeof tmr==='object'){TM.u=tmr.u||{};TM.t=+tmr.t||0;TM.d=tmr.d||{};}}catch(e){}
+function tmKey(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function tmFlush(){
+  try{
+    var ks=Object.keys(TM.d).sort();while(ks.length>90)delete TM.d[ks.shift()];
+    localStorage.setItem('ic_time',JSON.stringify({u:TM.u,t:TM.t,d:TM.d}));
+  }catch(e){}
+}
+function tmBucket(){var v=S.view||{};if(v.unit!=null)return 'u'+v.unit;if(v.tab==='practice')return 't';return null;}
+function tmIdle(){
+  var lg=false;
+  try{lg=!!(window.speechSynthesis&&window.speechSynthesis.speaking)||(typeof SO!=='undefined'&&SO.yt&&SO.yt.getPlayerState&&SO.yt.getPlayerState()===1);}catch(e){}
+  return lg?600000:120000;
+}
+function tmTick(){
+  var now=Date.now(),dt=Math.min(now-tmLast,7000);tmLast=now;
+  if(document.visibilityState!=='visible'||dt<=0)return;
+  if(now-tmAct>tmIdle())return;
+  var b=tmBucket();if(!b)return;
+  if(b==='t')TM.t+=dt;else{var n=b.slice(1);TM.u[n]=(TM.u[n]||0)+dt;}
+  var k=tmKey();TM.d[k]=(TM.d[k]||0)+dt;
+  if(now-tmSv>15000){tmSv=now;tmFlush();}
+}
+['pointerdown','keydown','touchstart','scroll','input','click'].forEach(function(e){document.addEventListener(e,function(){tmAct=Date.now();},{passive:true,capture:true});});
+document.addEventListener('visibilitychange',function(){tmLast=Date.now();if(document.visibilityState!=='visible')tmFlush();});
+window.addEventListener('pagehide',tmFlush);
+setInterval(tmTick,5000);
+function tmFmt(ms){var m=Math.round(ms/60000);if(m<1)return ms>0?'menos de 1 min':'0 min';var h=Math.floor(m/60);return h?h+'h '+('0'+(m%60)).slice(-2)+'min':m+' min';}
+function tmRow(n){var x=TM.u[n]||0;return x>=30000?'<span class="small muted num" style="display:block">Tempo: '+tmFmt(x)+'</span>':'';}
+function tmUnit(n){var x=TM.u[n]||0;return '<p class="small"><span class="muted">Tempo de estudo:</span> <span class="num">'+(x>=30000?tmFmt(x):'ainda não começou')+'</span></p>';}
+function tmReset(n){delete TM.u[n];tmFlush();}
+function tmCard(){
+  var k=tmKey(),hoje=TM.d[k]||0,tu=0,n,done=0,rem=0,tB=0;
+  Object.keys(TM.u).forEach(function(x){tu+=TM.u[x];});
+  for(n=1;n<=20;n++){var dc=doneCount(n);done+=dc;rem+=16-dc;tB+=TM.u[n]||0;}
+  var ds=Object.keys(TM.d).sort().slice(-14).filter(function(x){return TM.d[x]>=300000;}),sum=0;
+  ds.forEach(function(x){sum+=TM.d[x];});
+  var avg=ds.length?sum/ds.length:0,pv='';
+  if(rem===0)pv='Unidades 1 a 20 concluídas.';
+  else if(done>=3&&tB>=1800000&&avg>0){
+    var remMs=rem*(tB/done),sd=Math.ceil(remMs/avg),g=weekGoal(),cal=Math.ceil(sd*7/g),dt=new Date();
+    dt.setDate(dt.getDate()+cal);
+    pv='Previsão para fechar as unidades 1 a 20 (B1 e B1+): cerca de <strong>'+sd+' '+(sd===1?'dia':'dias')+' de estudo</strong>, por volta de <strong>'+dt.toLocaleDateString('pt-BR')+'</strong>, no seu ritmo de '+tmFmt(avg)+' por dia de estudo e '+g+' dias por semana. A estimativa muda conforme você estuda.';
+  }else pv='A previsão aparece depois que você concluir uns 3 passos e estudar uns 30 minutos nas unidades.';
+  return '<section class="card"><div class="eyebrow">Tempo de estudo</div>'+
+    '<div class="row" style="flex-wrap:wrap;gap:20px"><div><div class="num" style="font-size:21px;font-weight:700">'+tmFmt(hoje)+'</div><p class="small muted">hoje</p></div><div><div class="num" style="font-size:21px;font-weight:700">'+tmFmt(tu)+'</div><p class="small muted">nas unidades</p></div><div><div class="num" style="font-size:21px;font-weight:700">'+tmFmt(TM.t)+'</div><p class="small muted">no Treino</p></div></div>'+
+    '<p class="small">'+pv+'</p>'+
+    '<p class="small muted">O relógio roda só enquanto você usa o app. Ele pausa se a tela ficar escondida ou se você ficar 2 minutos sem tocar (música e áudio tocando contam por até 10 minutos).</p></section>';
 }
 
 /* ---------- voz: conversa falada e repetição de frases (versão independente) ---------- */
@@ -3300,7 +3352,7 @@ function act(a,t){
      errors().filter(function(e){return e.unit===rn;}).forEach(function(e){remove(e.id);});
      Object.keys(S.drafts).forEach(function(k){if(/^[xt]\d+-/.test(k)&&+k.slice(1).split('-')[0]===rn)delete S.drafts[k];});
      clearUnitExtras(rn);
-     save(pid(rn),{kind:'progress',n:rn,done:[],test:null,final:null});flash(uname(rn)+' zerada.');break;}
+     tmReset(rn);save(pid(rn),{kind:'progress',n:rn,done:[],test:null,final:null});flash(uname(rn)+' zerada.');break;}
    case 'unlockall':save('settings',Object.assign({},settings(),{kind:'settings',unlockAll:!settings().unlockAll}));break;
    case 'goal':save('settings',Object.assign({},settings(),{kind:'settings',goal:+t.dataset.g}));break;
    case 'pfpick':S.pfk=t.dataset.k||null;render();break;

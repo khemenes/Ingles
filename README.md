@@ -34,6 +34,11 @@ Os nomes dos modelos mudam com o tempo. Se o teste disser que o modelo não exis
 - As palavras concretas têm emoji ao lado, nas aulas de vocabulário, na lista e no quiz. O áudio e a comparação de voz ignoram o emoji.
 - **Traduções nas aulas e nos exercícios:** os exemplos e as frases em inglês das aulas (colunas "Exemplo", tabelas de frases, listas e exemplos em itálico) têm a tradução em português ao lado ou embaixo. Nos exercícios e nos testes há o botão **Ver tradução** em cada frase, e a tradução aparece de novo depois que você confere a resposta. As traduções ficam dentro de cada arquivo de unidade, no campo `tr`.
 
+## Tempo de estudo
+- O app conta o tempo que você estuda em cada unidade e no Treino. Na **Trilha** e na tela de cada unidade aparece o tempo gasto, e no **Início** há o total, o tempo de hoje e uma previsão para fechar as unidades 1 a 20.
+- O relógio só roda com o app aberto e na tela. Ele pausa se a tela ficar escondida ou se você ficar 2 minutos sem tocar (música ou áudio tocando contam por até 10 minutos).
+- O tempo fica guardado no aparelho (`ic_time`) e não é sincronizado entre aparelhos.
+
 ## Músicas
 Em **Treino → Músicas** há 10 músicas em inglês. O vídeo oficial do YouTube toca dentro do app, a letra sincronizada (do LRCLIB, um banco aberto da comunidade) acompanha o vídeo, e cada linha tem tradução, pronúncia das palavras difíceis, som e microfone. A tradução usa a sua chave de IA, e cada linha mostra também a pronúncia em português, no mesmo estilo das palavras (sílaba tônica em maiúsculas). As letras não fazem parte do app: são buscadas na hora e guardadas só no aparelho. Precisa de internet.
 
