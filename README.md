@@ -32,6 +32,7 @@ Os nomes dos modelos mudam com o tempo. Se o teste disser que o modelo não exis
 - A **aula de vocabulário** de cada unidade vem em 2 a 3 partes, por tema. Depois de cada parte há um mini-treino (até 6 perguntas) só com as palavras dela, e os exercícios da unidade ficam no fim. A parte em que você parou fica salva.
 - Todas as palavras que aparecem nas aulas de vocabulário também estão no banco de Palavras (lista, quiz e revisão), com tradução, classe e exemplo.
 - As palavras concretas têm emoji ao lado, nas aulas de vocabulário, na lista e no quiz. O áudio e a comparação de voz ignoram o emoji.
+- **Traduções nas aulas e nos exercícios:** os exemplos e as frases em inglês das aulas (colunas "Exemplo", tabelas de frases, listas e exemplos em itálico) têm a tradução em português ao lado ou embaixo. Nos exercícios e nos testes há o botão **Ver tradução** em cada frase, e a tradução aparece de novo depois que você confere a resposta. As traduções ficam dentro de cada arquivo de unidade, no campo `tr`.
 
 ## Músicas
 Em **Treino → Músicas** há 10 músicas em inglês. O vídeo oficial do YouTube toca dentro do app, a letra sincronizada (do LRCLIB, um banco aberto da comunidade) acompanha o vídeo, e cada linha tem tradução, pronúncia das palavras difíceis, som e microfone. A tradução usa a sua chave de IA, e cada linha mostra também a pronúncia em português, no mesmo estilo das palavras (sílaba tônica em maiúsculas). As letras não fazem parte do app: são buscadas na hora e guardadas só no aparelho. Precisa de internet.
