@@ -407,6 +407,7 @@ details.card>summary{cursor:pointer;display:flex;gap:8px;align-items:center;just
       if(o.onLevel){try{o.onLevel(rms);}catch(e){}}
       if(nF<3){fl+=rms/3;nF++;if(nF===3)thr=Math.min(0.08,Math.max(0.02,fl*3.5));return;}
       if(rms>thr){voiced++;lastV=now;if(firstV<0)firstV=chunks.length-1;}
+      if(o.manual){if(now-t0>maxMs)finish('max');return;}
       if(firstV>=0&&voiced*4096/sr*1000>=250&&now-lastV>silMs)finish('silence');
       else if(firstV<0&&now-t0>waitMs)finish('nospeech');
       else if(now-t0>maxMs)finish('max');
@@ -2492,8 +2493,8 @@ async function voiceListen(auto){
   vSet('starting','Ligando o microfone…');
   try{await IC.mic.open();}catch(e){if(my!==V.gen)return;VP.hands=false;vSet('idle',IC.errMsg(e));return;}
   if(my!==V.gen||S.chat!==c)return;
-  var rc=IC.mic.record({silenceMs:1600,waitMs:10000,maxMs:40000,onLevel:vLevel});
-  V.rec=rc;vSet('listening','Pode falar. Eu envio quando você parar.');
+  var rc=IC.mic.record({manual:true,maxMs:180000,onLevel:vLevel});
+  V.rec=rc;vSet('listening','Pode falar com calma. Quando terminar, toque em Parar e enviar.');
   var r;
   try{r=await rc.done;}catch(e){V.rec=null;if(my!==V.gen)return;VP.hands=false;vSet('idle',IC.errMsg(e));return;}
   V.rec=null;
@@ -2593,7 +2594,7 @@ function rpScreen(){
       '<div class="row" style="flex-wrap:wrap"><button class="btn primary vmic" data-act="rprec">'+ic(I.mic,18)+' Gravar minha voz</button><button class="btn ghost" data-act="rpskip">Pular</button></div>';
   }else if(d.phase==='rec'){
     h+=d.listening?
-      '<p class="small" aria-live="polite">Pode falar a frase. Eu paro quando você terminar.</p><div class="row"><button class="btn vmic rec" data-act="rpstop">'+ic(I.stop,18)+' Parar</button><div class="vlev" aria-hidden="true"><i id="vlev"></i></div></div>':
+      '<p class="small" aria-live="polite">Pode falar a frase com calma. Quando terminar, toque em Parar.</p><div class="row"><button class="btn vmic rec" data-act="rpstop">'+ic(I.stop,18)+' Parar</button><div class="vlev" aria-hidden="true"><i id="vlev"></i></div></div>':
       '<p class="small" aria-live="polite">Ligando o microfone…</p>';
   }else if(d.phase==='tr'){
     h+='<p class="small" aria-live="polite">Entendendo o que você disse…</p>';
@@ -2614,7 +2615,7 @@ async function rpRec(){
   d.err='';d.phase='rec';d.listening=false;render();
   try{await IC.mic.open();}catch(e){if(my!==R.gen||S.rp!==d)return;d.phase='q';d.err=IC.errMsg(e);render();return;}
   if(my!==R.gen||S.rp!==d)return;
-  var rc=IC.mic.record({silenceMs:1300,waitMs:8000,maxMs:15000,onLevel:vLevel});
+  var rc=IC.mic.record({manual:true,maxMs:90000,onLevel:vLevel});
   R.rec=rc;d.listening=true;render();
   var r;
   try{r=await rc.done;}catch(e){R.rec=null;if(my!==R.gen||S.rp!==d)return;d.phase='q';d.listening=false;d.err=IC.errMsg(e);render();return;}
@@ -2680,7 +2681,7 @@ function psPaint(){
   if(PS.err)h+='<div class="warnbox small"><strong>'+esc(PS.err)+'</strong></div>';
   var hear='<button type="button" class="btn" data-act="sayfull" data-say="'+esc(PS.text)+'">'+ic(I.vol,18)+' Ouvir</button><button type="button" class="btn" data-act="sayslow" data-say="'+esc(PS.text)+'">'+ic(I.vol,18)+' Devagar</button>';
   if(PS.phase==='q')h+='<div class="row" style="flex-wrap:wrap">'+hear+'<button type="button" class="btn primary vmic" data-act="prec">'+ic(I.mic,18)+' Gravar minha voz</button></div>';
-  else if(PS.phase==='rec')h+=PS.listening?'<p class="small" aria-live="polite">Pode falar. Eu paro quando você terminar.</p><div class="row"><button type="button" class="btn vmic rec" data-act="pstop">'+ic(I.stop,18)+' Parar</button><div class="vlev" aria-hidden="true"><i id="vlev"></i></div></div>':'<p class="small" aria-live="polite">Ligando o microfone…</p>';
+  else if(PS.phase==='rec')h+=PS.listening?'<p class="small" aria-live="polite">Pode falar com calma. Quando terminar, toque em Parar.</p><div class="row"><button type="button" class="btn vmic rec" data-act="pstop">'+ic(I.stop,18)+' Parar</button><div class="vlev" aria-hidden="true"><i id="vlev"></i></div></div>':'<p class="small" aria-live="polite">Ligando o microfone…</p>';
   else if(PS.phase==='tr')h+='<p class="small" aria-live="polite">Entendendo o que você disse…</p>';
   else{
     var c=PS.cur,lab=c.ratio>=1&&c.ok?'Perfeito.':c.ok?'Muito bem.':c.ratio>=0.5?'Quase.':'Vamos tentar de novo.';
@@ -2705,7 +2706,7 @@ async function psRec(){
   PS.err='';PS.phase='rec';PS.listening=false;psPaint();
   try{await IC.mic.open();}catch(e){if(my!==PS.gen)return;PS.phase='q';PS.err=IC.errMsg(e);psPaint();return;}
   if(my!==PS.gen)return;
-  var rc=IC.mic.record({silenceMs:1200,waitMs:8000,maxMs:15000,onLevel:vLevel});
+  var rc=IC.mic.record({manual:true,maxMs:90000,onLevel:vLevel});
   PS.rec=rc;PS.listening=true;psPaint();
   var r;
   try{r=await rc.done;}catch(e){PS.rec=null;if(my!==PS.gen)return;PS.phase='q';PS.listening=false;PS.err=IC.errMsg(e);psPaint();return;}
