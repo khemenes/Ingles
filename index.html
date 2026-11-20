@@ -117,6 +117,7 @@ ul.plain{padding-left:18px}
 .trn{color:var(--muted);font-size:.92em;font-weight:400;font-style:normal}
 .trn.d{display:block;margin-top:2px;font-size:.88em}
 .trd{margin:6px 0 4px;font-size:13.5px}
+.trrow{margin-top:6px}.trbtn{min-height:32px;padding:4px 10px;font-size:12.5px}.trn-msg{margin:6px 0 0;padding-top:6px;border-top:1px dashed var(--border,#ccc);color:var(--muted)}
 .trd summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32px;display:flex;align-items:center}
 .trd p{margin:4px 0 0;color:var(--muted)}
 .trl{margin:6px 0 0;padding-left:18px;color:var(--ink)}
@@ -2094,15 +2095,16 @@ var TEACHER=[
  '- Student goal: {meta}',
  '',
  'RULES',
+ '0. LANGUAGE: Write ONLY in English, with short and simple words for a {nivel} student. Never write Portuguese in your messages, not even in corrections or explanations. The app has a Translate button, so the student can read the Portuguese version if he needs it.',
  '1. Stay inside the scenario and the lesson topic. If the student goes off topic, bring him back politely.',
  '2. You lead the conversation. Ask one question at a time. Keep your messages short (max 3 sentences).',
  '3. Speak at {nivel} level. Use the target vocabulary and grammar naturally in your own lines.',
  '4. Correct mistakes in the grammar focus, vocabulary or sentence structure. Max 2 corrections per message. Format:',
- '   Correction: "<what he wrote>" -> "<correct form>" (short reason in Portuguese)',
+ '   Correction: "<what he wrote>" -> "<correct form>" (short reason in simple English)',
  '   Then continue the conversation.',
  '5. Do not correct punctuation or capital letters.',
  '5b. The student often answers by voice. His messages then come from speech-to-text and may contain misheard words (he has a Brazilian accent). Never comment on pronunciation. If a word makes no sense in context, do not correct it: politely ask what he meant. Only correct a mistake that is clearly grammar, vocabulary or structure.',
- '6. If the student writes in Portuguese, give the English version and ask him to repeat it.',
+ '6. If the student writes in Portuguese, give the English version of what he said and ask him to repeat it in English. Do this in English.',
  '7. Known recurring errors to watch: {erros_recorrentes}',
  '8. End after {trocas} exchanges, or when the student types FIM.',
  '',
@@ -2165,9 +2167,26 @@ function fmtMsg(m){
   });
   return h;
 }
+function msgTr(m,mi){
+  var b='<button type="button" class="btn ghost trbtn" data-act="chattr" data-i="'+mi+'"'+(m.trBusy?' disabled':'')+'>'+(m.trBusy?'Traduzindo…':(m.pt&&m.ptOpen?'Esconder tradução':'Traduzir'))+'</button>';
+  return '<div class="trrow">'+b+'</div>'+(m.pt&&m.ptOpen?'<p class="small trn-msg">'+esc(m.pt)+'</p>':'');
+}
+async function chatTr(mi){
+  var c=S.chat,m=c&&c.msgs[mi];if(!m||m.role!=='assistant'||m.trBusy)return;
+  if(m.pt){m.ptOpen=!m.ptOpen;paintChat();return;}
+  if(!S.sample){flash('O professor IA não está disponível aqui.');return;}
+  m.trBusy=true;paintChat();
+  try{
+    var r=await S.sample([{role:'user',content:'Translate the following English text into natural Brazilian Portuguese. Keep the line breaks. Output only the translation, nothing else.\n\n'+m.content}],{cache:true,modelTier:'quick'});
+    var t=String(r.text||'').trim();
+    m.trBusy=false;
+    if(t){m.pt=t;m.ptOpen=true;saveChatQ();}else flash('Não consegui traduzir agora.');
+  }catch(e){m.trBusy=false;flash(chatErr(e&&e.code));}
+  if(S.chat===c)paintChat();
+}
 function chatLogHtml(){
   var c=S.chat,h='';
-  c.msgs.forEach(function(m){h+='<div class="msg '+(m.role==='assistant'?'ia':'me')+'">'+fmtMsg(m)+'</div>';});
+  c.msgs.forEach(function(m,mi){h+='<div class="msg '+(m.role==='assistant'?'ia':'me')+'">'+fmtMsg(m)+(m.role==='assistant'?msgTr(m,mi):'')+'</div>';});
   if(c.busy){
     if(c.mode==='end')h+='<div class="msg ia muted">Preparando o relatório…</div>';
     else h+='<div class="msg ia">'+(c.stream?fmtMsg({content:c.stream}):'<span class="muted">Pensando…</span>')+'</div>';
@@ -2198,10 +2217,10 @@ function paintChat(){
   if(near)window.scrollTo(0,document.body.scrollHeight);
 }
 function chatScreen(){
-  var c=S.chat,cc=chatDef(c);
+  var c=S.chat,cc=chatDef(c),cce=cc.en||{};
   return '<button class="back" data-act="chatback">'+ic(I.back,18)+' '+(c.free?'Treino':c.L===3?'Conversa final':'Lição '+(c.L+1))+'</button>'+
     '<header><div class="eyebrow">'+(c.free?'Treino · '+esc(c.free.title):uname(c.unit)+' · '+esc(c.L===3?'Conversa final':'Lição '+(c.L+1)))+'</div><h1>Conversa com Claudio</h1></header>'+
-    '<details class="card"'+(c.msgs.length?'':' open')+'><summary><strong>Cenário e meta</strong></summary><p style="margin-top:8px">'+esc(cc.scenario)+'</p><p class="small"><strong>Papel da IA:</strong> '+esc(cc.role)+'</p><p class="small"><strong>Meta:</strong> '+esc(cc.goal)+'</p></details>'+
+    '<details class="card"'+(c.msgs.length?'':' open')+'><summary><strong>Cenário e meta</strong></summary><p style="margin-top:8px">'+esc(cce.scenario||cc.scenario)+'</p><p class="small"><strong>AI role:</strong> '+esc(cce.role||cc.role)+'</p><p class="small"><strong>Goal:</strong> '+esc(cce.goal||cc.goal)+'</p>'+(cce.scenario?'<details class="trd"><summary>Ver em português</summary><p>'+esc(cc.scenario)+'</p><p class="small"><strong>Papel da IA:</strong> '+esc(cc.role)+'</p><p class="small"><strong>Meta:</strong> '+esc(cc.goal)+'</p></details>':'')+'</details>'+
     '<div id="chatlog" class="chat" aria-live="polite">'+chatLogHtml()+'</div>'+
     '<div class="composer"><p class="small muted" id="chatcount">'+chatCount()+'</p>'+'<div id="vwrap">'+voiceBarHtml()+'</div>'+
     '<textarea id="cmsg" class="wide" rows="2" data-draft="cmsg" autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="Write in English…" aria-label="Sua mensagem"'+(c.ended?' disabled':'')+'>'+esc(S.drafts.cmsg||'')+'</textarea>'+
@@ -3372,6 +3391,7 @@ function act(a,t){
    case 'chatstart':vUnlock();chatStart(false);break;
    case 'chatnew':chatStart(true);break;
    case 'chatsend':chatSend();break;
+   case 'chattr':chatTr(+t.dataset.i);break;
    case 'chatretry':if(S.chat&&S.chat.lastKind)chatCall(S.chat.lastKind);break;
    case 'chatstop':if(S.chat&&S.chat.ctl)S.chat.ctl.abort();break;
    case 'chatend':if(S.chat&&userCount(S.chat)>=1)chatCall('end');break;
