@@ -117,6 +117,8 @@ ul.plain{padding-left:18px}
 .trn{color:var(--muted);font-size:.92em;font-weight:400;font-style:normal}
 .trn.d{display:block;margin-top:2px;font-size:.88em}
 .trd{margin:6px 0 4px;font-size:13.5px}
+.ctx{margin:0;padding:8px 10px;border-left:3px solid var(--accent);background:var(--surface2);border-radius:0 8px 8px 0;font-size:14.5px;line-height:1.5;overflow-wrap:anywhere}
+.sit{background:var(--accent-soft);border-radius:12px;padding:12px 14px;margin-bottom:10px}.sit p{margin:4px 0 0;line-height:1.5}
 .trrow{margin-top:6px}.trbtn{min-height:32px;padding:4px 10px;font-size:12.5px}.trn-msg{margin:6px 0 0;padding-top:6px;border-top:1px dashed var(--border,#ccc);color:var(--muted)}
 .trd summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32px;display:flex;align-items:center}
 .trd p{margin:4px 0 0;color:var(--muted)}
@@ -793,11 +795,16 @@ var TR={};
 function tk(s){return String(s==null?'':s).replace(/\*/g,'').replace(/\u2019/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/\s+/g,' ').trim();}
 function unesc(h){return h.replace(/<[^>]*>/g,'').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');}
 function trEm(h){return h.replace(/<(?:em|strong)>([\s\S]*?)<\/(?:em|strong)>((?:<button[\s\S]*?<\/button>|<span class="pr"[^>]*>[^<]*<\/span>)*)/g,function(m,x,rest){var t=TR[tk(unesc(x.replace(/<[^>]*>/g,'')))];return t?m+' <span class="trn">('+esc(t)+')</span>':m;});}
+function ctxHtml(q){return q.ctx?'<p class="ctx">'+esc(q.ctx)+'</p>':'';}
+function sitHtml(les){
+  var st=les.sit;if(!st||!st.en)return '';
+  return '<div class="sit"><strong>Situação</strong><p>'+esc(st.en)+'</p>'+(st.pt?'<details class="trd"><summary>Ver tradução</summary><p>'+esc(st.pt)+'</p></details>':'')+'</div>';
+}
 function trBox(q){
-  var t=TR[tk(q.prompt||'')];if(!t)return '';
+  var t=TR[tk(q.prompt||'')],cx=q.ctx?TR[tk(q.ctx)]:'';if(!t&&!cx)return '';
   var o='';
   if(q.type==='choice')o='<ul class="trl">'+q.options.map(function(x){var y=TR[tk(x)];return '<li>'+esc(x)+(y?' <span class="muted">= '+esc(y)+'</span>':'')+'</li>';}).join('')+'</ul>';
-  return '<details class="trd"><summary>Ver tradução</summary><p>'+esc(t)+'</p>'+o+'</details>';
+  return '<details class="trd"><summary>Ver tradução</summary>'+(cx?'<p>'+esc(cx)+'</p>':'')+(t?'<p>'+esc(t)+'</p>':'')+o+'</details>';
 }
 function trAns(q){var k=q.type==='react'?q.show:q.prompt,t=k?TR[tk(k)]:'';return t?'<br><span class="muted">Tradução: '+esc(t)+'</span>':'';}
 function mk(s){return esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');}
@@ -844,7 +851,7 @@ function feedback(q,res){
 }
 function qHead(qi,q){return '<div class="row"><span class="qn num">'+(qi+1)+'</span><span class="small muted grow">'+esc(q.instr||(q.type==='fill'?'Complete:':q.type==='open'?'Responda:':''))+'</span></div>';}
 function exBlock(n,L,qi,q,res){
-  var base='x'+n+'-'+L+'-'+qi,h='<div class="q">'+qHead(qi,q);
+  var base='x'+n+'-'+L+'-'+qi,h='<div class="q">'+qHead(qi,q)+ctxHtml(q);
   if(q.type==='choice'){
     h+='<p class="qp">'+esc(q.prompt)+'</p>'+trBox(q)+'<div class="list">';
     q.options.forEach(function(o,k){
@@ -859,7 +866,7 @@ function exBlock(n,L,qi,q,res){
 function exercisesBody(n,L,D){
   var les=D.lessons[L],p=prog(n),arr=(p.ex&&p.ex[L])||[],tot=les.exercises.length,done=0;
   les.exercises.forEach(function(q,qi){if(arr[qi]!=null)done++;});
-  var h='<p class="small muted num">'+done+' de '+tot+' respondidos</p><div class="list">';
+  var h=sitHtml(les)+'<p class="small muted num">'+done+' de '+tot+' respondidos</p><div class="list">';
   les.exercises.forEach(function(q,qi){h+=exBlock(n,L,qi,q,arr[qi]==null?null:arr[qi]);});
   return h+'</div>'+(done===tot?'<div class="okbox"><strong>Exercícios concluídos.</strong> O passo foi marcado.</div>':'');
 }
@@ -963,7 +970,7 @@ function testBody(n,D){
   qs.forEach(function(q,qi){
     var base='t'+n+'-'+qi;
     if(q.cat!==last){h+='<h3 style="padding-top:8px">'+esc(q.cat)+'</h3>';last=q.cat;}
-    h+='<div class="q">'+qHead(qi,q)+promptHtml(base,q,!r)+trBox(q);
+    h+='<div class="q">'+qHead(qi,q)+ctxHtml(q)+promptHtml(base,q,!r)+trBox(q);
     if(r)h+=r.res[qi]?'<div class="okbox small"><strong>Correto.</strong>'+trAns(q)+'</div>':'<div class="warnbox small"><strong>Resposta esperada:</strong> '+esc(showAns(q))+trAns(q)+'</div>';
     h+='</div>';
   });
