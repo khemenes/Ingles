@@ -3001,7 +3001,10 @@ var SONGS=[
 var SO={yt:null,ready:false,loading:false,box:null,tick:null,last:-1,stopAt:null,gen:0};
 function soStore(){try{return JSON.parse(localStorage.getItem('ic_so')||'{}')||{};}catch(e){return {};}}
 function soSave(id,d){try{var s=soStore();s[id]=d;localStorage.setItem('ic_so',JSON.stringify(s));}catch(e){}}
-function soById(id){for(var i=0;i<SONGS.length;i++)if(SONGS[i].id===id)return SONGS[i];return null;}
+function soCustom(){try{var a=JSON.parse(localStorage.getItem('ic_so_custom')||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function soCustomSave(a){try{localStorage.setItem('ic_so_custom',JSON.stringify(a));}catch(e){}}
+function soAll(){return SONGS.concat(soCustom());}
+function soById(id){var all=soAll();for(var i=0;i<all.length;i++)if(all[i].id===id)return all[i];return null;}
 function soParse(lrc){
   var out=[];
   String(lrc||'').split('\n').forEach(function(ln){
@@ -3013,16 +3016,57 @@ function soParse(lrc){
   out.sort(function(p,q){return p[0]-q[0];});
   return out;
 }
-function soFind(sg){
+function soFind(sg,strict){
   var url='https://lrclib.net/api/search?artist_name='+encodeURIComponent(sg.a)+'&track_name='+encodeURIComponent(sg.t);
   return fetch(url).then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json();}).then(function(j){
     var ar=sg.a.toLowerCase().split(' ').pop(),tw=sg.t.toLowerCase().split(' ')[0];
     var all=(j||[]).filter(function(x){return x.syncedLyrics;});
     var good=all.filter(function(x){return String(x.artistName||'').toLowerCase().indexOf(ar)>=0&&String(x.trackName||'').toLowerCase().indexOf(tw)>=0;});
-    var pool=good.length?good:all;if(!pool.length)throw new Error('none');
-    pool.sort(function(p,q){return Math.abs((p.duration||0)-sg.d)-Math.abs((q.duration||0)-sg.d);});
+    var pool=(good.length||strict)?good:all;if(!pool.length)throw new Error('none');
+    if(sg.d)pool.sort(function(p,q){return Math.abs((p.duration||0)-sg.d)-Math.abs((q.duration||0)-sg.d);});
     var b=pool[0],lines=soParse(b.syncedLyrics);if(lines.length<4)throw new Error('none');
-    return {lid:b.id,dur:b.duration||0,lines:lines};
+    return {lid:b.id,dur:b.duration||0,lines:lines,an:b.artistName||'',tn:b.trackName||''};
+  });
+}
+var SO_PIPED=['https://api.piped.private.coffee','https://pipedapi.kavin.rocks','https://pipedapi.adminforge.de','https://pipedapi.in.projectsegfau.lt'];
+function soVideo(a,t,dur){
+  var q=encodeURIComponent(a+' '+t+' official video'),tl=t.toLowerCase();
+  function pick(j){
+    var items=(j&&j.items||[]).filter(function(x){return x&&x.type==='stream'&&x.duration>0&&/[?&]v=([\w-]{11})/.test(x.url||'');});
+    var ok=items.filter(function(x){
+      var ti=String(x.title||'').toLowerCase();
+      if(/karaoke|cover|instrumental|reaction|remix|tutorial|slowed|sped up/.test(ti)&&!/karaoke|cover|instrumental|reaction|remix|tutorial|slowed|sped up/.test(tl))return false;
+      return !dur||Math.abs(x.duration-dur)<=20;
+    });
+    if(!ok.length)return null;
+    return /[?&]v=([\w-]{11})/.exec(ok[0].url)[1];
+  }
+  function go(i){
+    if(i>=SO_PIPED.length)return Promise.reject(new Error('novideo'));
+    var c=new AbortController(),to=setTimeout(function(){c.abort();},8000);
+    return fetch(SO_PIPED[i]+'/search?q='+q+'&filter=videos',{signal:c.signal}).then(function(r){clearTimeout(to);if(!r.ok)throw new Error('http');return r.json();}).then(function(j){
+      var id=pick(j);if(!id)throw new Error('none');return id;
+    }).catch(function(){clearTimeout(to);return go(i+1);});
+  }
+  return go(0);
+}
+function soAdd(a,t){
+  var so=S.so;so.add={a:a,t:t,busy:true,err:''};render();
+  soFind({a:a,t:t,d:0},true).then(function(r){
+    return soVideo(r.an||a,r.tn||t,r.dur).then(function(vid){
+      var id='c'+r.lid,list=soCustom();
+      if(!list.some(function(x){return x.id===id;})){
+        list.push({id:id,a:r.an||a,t:r.tn||t,v:vid,d:r.dur,lv:'',tag:'Sua música',custom:true});
+        soCustomSave(list);
+        soSave(id,{lid:r.lid,lines:r.lines,off:0,tr:{},trlid:r.lid});
+      }
+      if(S.so===so){so.add=null;soOpen(id);}
+    });
+  }).catch(function(e){
+    if(S.so!==so)return;
+    var m=(e&&e.message)||'';
+    so.add={a:a,t:t,busy:false,err:m==='novideo'?'Achei a letra, mas não consegui achar o vídeo agora. Tente de novo em instantes.':m==='none'?'Não achei essa música com letra sincronizada. Confira o nome do artista e da música (em inglês, como no original).':'Não consegui buscar agora. Confira a internet e tente de novo.'};
+    render();
   });
 }
 /* player do YouTube (fica fora do #app para não recarregar a cada tela) */
@@ -3109,10 +3153,17 @@ function soScreen(){
   var so=S.so,h='';
   if(!so.id){
     h+='<header><button class="btn ghost" data-act="soexit">'+ic(I.back,18)+' Treino</button><div class="eyebrow" style="margin-top:8px">Treino</div><h1>Músicas</h1><p class="muted small" style="margin-top:6px">Ouça a música aqui mesmo, acompanhe a letra e toque em uma linha para ver a tradução e como pronunciar. Precisa de internet.</p></header>';
-    h+='<div class="list">'+SONGS.map(function(s,k){
-      var st=soStore()[s.id];
-      return '<button class="item" data-act="soopen" data-id="'+s.id+'"><span class="badge">'+(k+1)+'</span><span class="grow"><strong>'+esc(s.t)+'</strong><span class="small muted" style="display:block">'+esc(s.a)+' · '+s.lv+' · '+esc(s.tag)+'</span></span>'+(st&&st.tr?'<span class="small muted">traduzida</span>':'')+'</button>';
+    h+='<div class="list">'+soAll().map(function(s,k){
+      var st=soStore()[s.id],tg=s.custom?'Sua música':s.lv+' · '+esc(s.tag);
+      var it='<button class="item" data-act="soopen" data-id="'+s.id+'"'+(s.custom?' style="flex:1"':'')+'><span class="badge">'+(k+1)+'</span><span class="grow"><strong>'+esc(s.t)+'</strong><span class="small muted" style="display:block">'+esc(s.a)+' · '+tg+'</span></span>'+(st&&st.tr&&Object.keys(st.tr).length?'<span class="small muted">traduzida</span>':'')+'</button>';
+      return s.custom?'<div class="row" style="align-items:stretch;gap:6px">'+it+'<button type="button" class="btn ghost" data-act="sodel" data-id="'+s.id+'" aria-label="Remover '+esc(s.t)+'">Remover</button></div>':it;
     }).join('')+'</div>';
+    var ad=so.add||{a:'',t:'',busy:false,err:''};
+    h+='<section class="card" style="margin-top:16px"><h3>Adicionar uma música</h3><p class="small muted">Digite o artista e o nome da música, em inglês. O app procura o vídeo e a letra sozinho, e você ganha tradução, pronúncia e a letra acompanhando, como nas outras.</p>'+
+      '<label class="small" for="soa">Artista</label><input type="text" id="soa" class="wide" autocomplete="off" spellcheck="false" placeholder="Ex.: Adele" value="'+esc(ad.a)+'"'+(ad.busy?' disabled':'')+'>'+
+      '<label class="small" for="sot">Música</label><input type="text" id="sot" class="wide" autocomplete="off" spellcheck="false" placeholder="Ex.: Hello" value="'+esc(ad.t)+'"'+(ad.busy?' disabled':'')+'>'+
+      (ad.err?'<div class="warnbox" style="margin-top:8px"><p class="small">'+esc(ad.err)+'</p></div>':'')+
+      '<button class="btn primary" style="margin-top:10px" data-act="soadd"'+(ad.busy?' disabled':'')+'>'+(ad.busy?'Procurando…':'Adicionar')+'</button></section>';
     return h;
   }
   var sg=soById(so.id);
@@ -3135,7 +3186,7 @@ function soScreen(){
   return h;
 }
 function soMenu(){
-  return '<section class="card"><h3>Músicas</h3><p class="small">Dez músicas para aprender inglês: o vídeo toca aqui, a letra acompanha, e você vê a tradução e como pronunciar as palavras difíceis.</p><button class="btn primary" data-act="soenter">Abrir as músicas</button></section>';
+  return '<section class="card"><h3>Músicas</h3><p class="small">Dez músicas para aprender inglês, e você pode adicionar as suas: o vídeo toca aqui, a letra acompanha, e você vê a tradução e como pronunciar as palavras difíceis.</p><button class="btn primary" data-act="soenter">Abrir as músicas</button></section>';
 }
 function soOpen(id){
   var sg=soById(id);if(!sg)return;
@@ -3265,7 +3316,18 @@ function soAct(a,t){
   if(a==='soenter'){S.so={id:null};render();window.scrollTo(0,0);return;}
   if(!so)return;
   if(a==='soexit'){soHalt();S.so=null;render();window.scrollTo(0,0);return;}
-  if(a==='soopen'){soOpen(t.dataset.id);return;}
+  if(a==='soopen'){so.add=null;soOpen(t.dataset.id);return;}
+  if(a==='soadd'){
+    var ia=document.getElementById('soa'),it=document.getElementById('sot'),va=ia?ia.value.trim():'',vt=it?it.value.trim():'';
+    if(!va||!vt){so.add={a:va,t:vt,busy:false,err:'Digite o artista e o nome da música.'};render();return;}
+    soAdd(va,vt);return;
+  }
+  if(a==='sodel'){
+    if(!window.confirm('Remover esta música da sua lista?'))return;
+    var rid2=t.dataset.id;soCustomSave(soCustom().filter(function(x){return x.id!==rid2;}));
+    try{var ss=soStore();delete ss[rid2];localStorage.setItem('ic_so',JSON.stringify(ss));}catch(e){}
+    render();return;
+  }
   if(a==='soback'){soHalt();so.id=null;so.lines=null;so.err='';render();window.scrollTo(0,0);return;}
   if(a==='soretry'){var sg=soById(so.id);if(sg){so.err='';soMount(sg);soLoad(sg);render();}return;}
   if(a==='soline'){var i=+t.dataset.i;so.open=so.open===i?null:i;render();return;}
@@ -3367,7 +3429,7 @@ function act(a,t){
    case 'wrnew':{var e1=S.ex;if(e1){e1.res=null;e1.err='';render();window.scrollTo(0,0);}break;}
    case 'trask':S.confirmReset='treino';render();break;
    case 'apprac':case 'apnext':case 'apprev':case 'apopt':case 'apqnext':apAct(a,t);break;
-   case 'soenter':case 'soexit':case 'soopen':case 'soback':case 'soretry':case 'soline':case 'soplay':case 'sosync':case 'sooff':case 'sofollow':case 'sotr':case 'sopr':case 'sopfill':soAct(a,t);break;
+   case 'soenter':case 'soexit':case 'soopen':case 'soback':case 'soretry':case 'soline':case 'soplay':case 'sosync':case 'sooff':case 'sofollow':case 'sotr':case 'sopr':case 'sopfill':case 'soadd':case 'sodel':soAct(a,t);break;
    case 'vrec':case 'vstop':case 'vspeak':case 'vhands':case 'vplay':voiceAct(a);break;
    case 'pmic':case 'prec':case 'pstop':case 'pclose':case 'pplay':psAct(a,t);break;
    case 'rpstart':case 'rprec':case 'rpstop':case 'rpskip':case 'rpnext':case 'rpback':case 'rpplay':rpAct(a,t);break;
