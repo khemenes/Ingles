@@ -3050,13 +3050,14 @@ function soVideo(a,t,dur){
   }
   return go(0);
 }
+function soClean(s){var seen={},o=[];String(s||'').split(',').forEach(function(x){x=x.trim();var k=x.toLowerCase();if(x&&!seen[k]){seen[k]=1;o.push(x);}});return o.join(', ');}
 function soAdd(a,t){
   var so=S.so;so.add={a:a,t:t,busy:true,err:''};render();
   soFind({a:a,t:t,d:0},true).then(function(r){
     return soVideo(r.an||a,r.tn||t,r.dur).then(function(vid){
       var id='c'+r.lid,list=soCustom();
       if(!list.some(function(x){return x.id===id;})){
-        list.push({id:id,a:r.an||a,t:r.tn||t,v:vid,d:r.dur,lv:'',tag:'Sua música',custom:true});
+        list.push({id:id,a:soClean(r.an)||a,t:r.tn||t,v:vid,d:r.dur,lv:'',tag:'Sua música',custom:true});
         soCustomSave(list);
         soSave(id,{lid:r.lid,lines:r.lines,off:0,tr:{},trlid:r.lid});
       }
