@@ -1100,13 +1100,13 @@ function applyReview(id,right){
 function rvCard(e,pos,tot){
   var r=S.rv&&S.rv.id===e.id?S.rv:null;
   var h='<section class="card"><div class="row"><span class="chip">'+CAT[e.category]+'</span><span class="small muted grow">'+uname(e.unit)+'</span><span class="small muted num">'+pos+' de '+tot+'</span></div>'+
-    (e.category==='escuta'?'<p class="muted small">Ouça e escreva a frase.</p><div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="sayfull" data-say="'+esc(e.correct)+'">'+ic(I.vol,18)+' Ouvir</button><button class="btn" data-act="sayslow" data-say="'+esc(e.correct)+'">'+ic(I.vol,18)+' Devagar</button></div>':'<p class="muted small">Reescreva a frase de forma correta.</p><p style="font-size:19px"><span class="wrongtxt">'+esc(e.written)+'</span></p>');
+    (e.category==='escuta'?'<p class="small"><strong>O que fazer:</strong> ouça a frase e escreva em inglês o que você ouviu. Use "Devagar" se precisar.</p><div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="sayfull" data-say="'+esc(e.correct)+'">'+ic(I.vol,18)+' Ouvir</button><button class="btn" data-act="sayslow" data-say="'+esc(e.correct)+'">'+ic(I.vol,18)+' Devagar</button></div>':'<p class="small"><strong>O que fazer:</strong> '+(String(e.written||'').trim().split(/\s+/).length<=4?'escreva em inglês a forma correta deste trecho. Pode ser só essa parte, não precisa de frase completa.':'reescreva em inglês esta frase, corrigindo o erro.')+'</p><p class="small muted" style="margin-top:10px">Você escreveu na conversa:</p><p style="font-size:19px;margin-top:2px"><span class="wrongtxt">'+esc(e.written)+'</span></p>'+(e.point?'<p class="small muted">Assunto do erro: '+esc(e.point)+'</p>':''));
   if(!r){
-    h+='<input type="text" class="wide" id="rvin" data-draft="rv" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Frase corrigida" value="'+esc(S.drafts.rv||'')+'">'+
-      '<div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="rvcheck">Conferir</button><button class="btn ghost" data-act="rvskip">Não sei</button></div>';
+    h+='<input type="text" class="wide" id="rvin" data-draft="rv" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Frase corrigida" placeholder="Digite a versão correta aqui" value="'+esc(S.drafts.rv||'')+'">'+
+      '<div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="rvcheck">Conferir</button><button class="btn ghost" data-act="rvskip">Não sei, mostrar a resposta</button></div>';
   }else{
     h+=r.res?'<div class="okbox"><strong>Certo.</strong></div>':'<div class="warnbox"><strong>'+(r.skip?'Sem problema, veja a resposta.':'Quase.')+'</strong>'+(r.val&&!r.skip?'<p class="small">Você escreveu: '+esc(r.val)+'</p>':'')+'</div>';
-    h+='<div class="okbox"><p><strong>'+esc(e.correct)+'</strong></p><p class="small" style="margin-top:4px">'+esc(e.why)+'</p></div>';
+    h+='<div class="okbox"><p class="small muted">Forma correta:</p><p><strong>'+esc(e.correct)+'</strong></p><p class="small" style="margin-top:4px">'+esc(e.why)+'</p></div>';
     if(!r.res&&!r.skip)h+='<button class="btn ghost" data-act="rvself">Minha resposta também está certa</button>';
     h+='<button class="btn primary" data-act="rvnext">Próximo</button>';
   }
@@ -1119,7 +1119,7 @@ function nextPending(n){
 }
 function review(){
   if(S.vc&&S.vc.from==='rev')return vcScreen();
-  var h='<header><div class="eyebrow">Revisão</div><h1>Erros para rever</h1><p class="muted small" style="margin-top:6px">Os erros das suas conversas voltam depois de 1, 3 e 7 dias. Depois de 3 acertos seguidos, saem da lista.</p></header>';
+  var h='<header><div class="eyebrow">Revisão</div><h1>Erros para rever</h1><p class="muted small" style="margin-top:6px">Aqui você refaz, escrevendo em inglês, os erros que apareceram nas suas conversas com o professor. Cada erro volta depois de 1, 3 e 7 dias, e sai da lista depois de 3 acertos seguidos.</p></header>';
   var due=dueErrors(),all=errors();
   if(due.length){
     var e=due.filter(function(x){return S.rv&&S.rv.id===x.id;})[0]||due[0];
