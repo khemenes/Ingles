@@ -93,6 +93,8 @@ a.btn.primary{color:var(--accent-ink)}
 .opt.right{border-color:var(--accent);background:var(--accent-soft)} .opt.wrong{border-color:var(--crit)}
 input[type=text]{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:7em}
 .wrongtxt{text-decoration:line-through;text-decoration-color:var(--crit);color:var(--muted)}
+.exg{margin:18px 0 4px}.exg h3{margin:0 0 4px}.exg .exm{background:var(--accent-soft);padding:8px 12px;border-radius:10px;margin:8px 0}
+.bank{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px;align-items:center}.bank b{font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--line)}
 .seglabel{display:flex;gap:8px}
 .seglabel .btn{flex:1}.seglabel .btn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .switch{display:flex;align-items:center;gap:10px;min-height:44px;background:none;border:0;padding:0;text-align:left}
@@ -857,9 +859,39 @@ function qInstr(q){
   if(q.type==='fix')return 'Corrija a frase:';
   return '';
 }
-function qHead(qi,q){return '<div class="row"><span class="qn num">'+(qi+1)+'</span><span class="small muted grow">'+esc(qInstr(q))+'</span></div>';}
-function exBlock(n,L,qi,q,res){
-  var base='x'+n+'-'+L+'-'+qi,h='<div class="q">'+qHead(qi,q)+ctxHtml(q);
+function qKind(q){if(q.type==='fill')return /\([^)]*\)/.test(q.prompt)?'P':'B';return {choice:'C',fix:'F',react:'R',open:'O'}[q.type]||'O';}
+var KORD={B:0,P:1,C:2,F:3,R:4,O:5};
+var KEX={
+ B:{t:'Complete com a palavra que falta',d:'Veja o banco de palavras e escolha a que completa a frase. Escreva a palavra em inglês no espaço.',x:'Exemplo: "I drink a glass of ___ every morning." Banco: chair, green, water → <strong>water</strong>'},
+ P:{t:'Complete usando a dica entre parênteses',d:'Se a dica estiver em inglês, é a palavra-base: escreva-a na forma certa para a frase. Se estiver em português, é o significado da palavra que falta: escreva em inglês.',x:'Exemplo: "She ___ (go) to work by bus." → <strong>goes</strong> · "The soup is too ___. (salgado)" → <strong>salty</strong>'},
+ C:{t:'Escolha a melhor opção',d:'Leia a situação e toque na opção mais natural. Só uma está certa.',x:'Exemplo: alguém diz "Thank you!". A opção certa é "You\'re welcome.", e não "Good night."'},
+ F:{t:'Corrija a frase',d:'A frase tem um erro. Reescreva a frase inteira, em inglês, já corrigida.',x:'Exemplo: "He have a car." → <strong>He has a car.</strong>'},
+ R:{t:'Responda como numa conversa',d:'Leia o que a pessoa diz, ou a situação, e escreva em inglês uma reação natural.',x:'Exemplo: "I got the job!" → <strong>Congratulations! That\'s great news.</strong>'},
+ O:{t:'Responda com suas palavras',d:'Escreva em inglês, em uma ou duas frases. Não existe uma única resposta certa.',x:'Exemplo: "What do you do?" → <strong>I\'m a teacher. I work in a school.</strong>'}
+};
+function bankHtml(items){
+  var seen={},w=[];items.forEach(function(it){(it.q.ans||[]).forEach(function(a){var s=String(a[0]||'').toLowerCase();if(s&&!seen[s]){seen[s]=1;w.push(s);}});});
+  w.sort();return '<div class="bank"><span class="small muted">Banco de palavras:</span>'+w.map(function(s){return '<b class="small">'+esc(s)+'</b>';}).join('')+'</div>';
+}
+/* agrupa por tipo (palavra do banco, dica, escolha, corrigir, conversa, aberta); mantém o índice original para o progresso */
+function groupQs(list,seen){
+  var by={};list.forEach(function(it){var k=qKind(it.q);(by[k]=by[k]||[]).push(it);});
+  var out=[];
+  Object.keys(by).sort(function(a,b){return KORD[a]-KORD[b];}).forEach(function(k){
+    var arr=by[k],size=k==='B'?8:arr.length;
+    for(var i=0;i<arr.length;i+=size){
+      var part=arr.slice(i,i+size),e=KEX[k],hd;
+      if(!seen[k]){seen[k]=1;hd='<div class="exg"><h3>'+e.t+'</h3><p class="small">'+e.d+'</p><p class="exm small">'+e.x+'</p>';}
+      else hd='<div class="exg"><h3>'+e.t+(i>0?' (continuação)':'')+'</h3>';
+      if(k==='B')hd+=bankHtml(part);
+      out.push({head:hd+'</div>',items:part});
+    }
+  });
+  return out;
+}
+function qHead(qi,q,num){return '<div class="row"><span class="qn num">'+(num||qi+1)+'</span><span class="small muted grow">'+esc(qInstr(q))+'</span></div>';}
+function exBlock(n,L,qi,q,res,num){
+  var base='x'+n+'-'+L+'-'+qi,h='<div class="q">'+qHead(qi,q,num)+ctxHtml(q);
   if(q.type==='choice'){
     h+='<p class="qp">'+esc(q.prompt)+'</p>'+trBox(q)+'<div class="list">';
     q.options.forEach(function(o,k){
@@ -875,7 +907,8 @@ function exercisesBody(n,L,D){
   var les=D.lessons[L],p=prog(n),arr=(p.ex&&p.ex[L])||[],tot=les.exercises.length,done=0;
   les.exercises.forEach(function(q,qi){if(arr[qi]!=null)done++;});
   var h=sitHtml(les)+'<p class="small muted num">'+done+' de '+tot+' respondidos</p><div class="list">';
-  les.exercises.forEach(function(q,qi){h+=exBlock(n,L,qi,q,arr[qi]==null?null:arr[qi]);});
+  var pos=0;
+  groupQs(les.exercises.map(function(q,qi){return {q:q,qi:qi};}),{}).forEach(function(g){h+=g.head;g.items.forEach(function(it){pos++;h+=exBlock(n,L,it.qi,it.q,arr[it.qi]==null?null:arr[it.qi],pos);});});
   return h+'</div>'+(done===tot?'<div class="okbox"><strong>Exercícios concluídos.</strong> O passo foi marcado.</div>':'');
 }
 function setEx(n,L,qi,val){
@@ -977,12 +1010,19 @@ function testBody(n,D){
   var qs=D.lessons[3].test,p=prog(n),r=S.testRes,h='',last='';
   if(p.test!=null&&!r)h+='<div class="row" style="flex-wrap:wrap"><span class="chip '+(p.test>=80?'ok':'warn')+' num">Último resultado: '+p.test+'%</span><span class="small muted">'+(p.test>=80?'Aprovado':'Precisa de 80% para passar')+'</span></div>';
   h+='<p class="small muted">'+qs.length+' questões. Você precisa de 80% ('+Math.ceil(qs.length*0.8)+' acertos) para fechar este passo.</p><div class="list">';
-  qs.forEach(function(q,qi){
-    var base='t'+n+'-'+qi;
-    if(q.cat!==last){h+='<h3 style="padding-top:8px">'+esc(q.cat)+'</h3>';last=q.cat;}
-    h+='<div class="q">'+qHead(qi,q)+ctxHtml(q)+promptHtml(base,q,!r)+trBox(q);
-    if(r)h+=r.res[qi]?'<div class="okbox small"><strong>Correto.</strong>'+trAns(q)+'</div>':'<div class="warnbox small"><strong>Resposta esperada:</strong> '+esc(showAns(q))+trAns(q)+'</div>';
-    h+='</div>';
+  var cats=[],bycat={},pos=0,seenK={};
+  qs.forEach(function(q,qi){if(!bycat[q.cat]){bycat[q.cat]=[];cats.push(q.cat);}bycat[q.cat].push({q:q,qi:qi});});
+  cats.forEach(function(cat){
+    h+='<h3 style="padding-top:8px">'+esc(cat)+'</h3>';
+    groupQs(bycat[cat],seenK).forEach(function(g){
+      h+=g.head;
+      g.items.forEach(function(it){
+        var q=it.q,qi=it.qi,base='t'+n+'-'+qi;pos++;
+        h+='<div class="q">'+qHead(qi,q,pos)+ctxHtml(q)+promptHtml(base,q,!r)+trBox(q);
+        if(r)h+=r.res[qi]?'<div class="okbox small"><strong>Correto.</strong>'+trAns(q)+'</div>':'<div class="warnbox small"><strong>Resposta esperada:</strong> '+esc(showAns(q))+trAns(q)+'</div>';
+        h+='</div>';
+      });
+    });
   });
   h+='</div>';
   if(!r)return h+'<button class="btn primary" data-act="grade">Corrigir o teste</button>';
