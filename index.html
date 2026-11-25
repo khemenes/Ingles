@@ -1105,8 +1105,30 @@ function applyReview(id,right){
   if(S.rvSeen.indexOf(id)<0)S.rvSeen.push(id);
   S.rv=null;S.drafts.rv='';bump();save(id,x);
 }
+var RV_FUNC={a:1,an:1,the:1,to:1,of:1,in:1,on:1,at:1,for:1,with:1,by:1,from:1,about:1,do:1,does:1,did:1,is:1,are:1,am:1,was:1,were:1,be:1,been:1,have:1,has:1,had:1,will:1,would:1,can:1,could:1,not:1,no:1,my:1,your:1,his:1,her:1,our:1,their:1,it:1,i:1,you:1,he:1,she:1,we:1,they:1,s:1,ve:1,ll:1,d:1,m:1,re:1,nt:1};
+function rvToks(s){return String(s||'').toLowerCase().replace(/[’]/g,"'").replace(/[^a-z0-9' ]+/g,' ').replace(/'/g,' ').split(/\s+/).filter(Boolean);}
+function rvLev(a,b){var m=a.length,n=b.length,d=[],i,j;for(i=0;i<=m;i++){d[i]=[i];}for(j=1;j<=n;j++)d[0][j]=j;for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n];}
+/* dá para acertar sem adivinhar? só quando a correção troca/ajusta palavras já escritas ou acrescenta palavras de ligação */
+function rvGuessable(w,c){
+  var a=rvToks(w),b=rvToks(c);if(!a.length||!b.length)return false;
+  var cnt={},i;a.forEach(function(x){cnt[x]=(cnt[x]||0)+1;});
+  var added=[];b.forEach(function(x){if(cnt[x]>0)cnt[x]--;else added.push(x);});
+  var removed=[];Object.keys(cnt).forEach(function(k){for(i=0;i<cnt[k];i++)removed.push(k);});
+  if(added.length>3)return false;
+  return added.every(function(x){
+    if(RV_FUNC[x])return true;
+    return removed.some(function(r){return rvLev(x,r)<=Math.max(2,Math.ceil(x.length/3));});
+  });
+}
 function rvCard(e,pos,tot){
   var r=S.rv&&S.rv.id===e.id?S.rv:null;
+  if(e.category!=='escuta'&&!rvGuessable(e.written,e.correct)){
+    return '<section class="card"><div class="row"><span class="chip">'+CAT[e.category]+'</span><span class="small muted grow">'+uname(e.unit)+'</span><span class="small muted num">'+pos+' de '+tot+'</span></div>'+
+      '<p class="small"><strong>Para estudar:</strong> esta correção não dá para adivinhar, então leia com calma e depois diga se entendeu.</p>'+
+      '<p class="small muted" style="margin-top:10px">Você escreveu na conversa:</p><p style="font-size:19px;margin-top:2px"><span class="wrongtxt">'+esc(e.written)+'</span></p>'+
+      '<div class="okbox" style="margin-top:10px"><p class="small muted">Forma correta:</p><p><strong>'+esc(e.correct)+'</strong></p>'+(e.why?'<p class="small" style="margin-top:4px">'+esc(e.why)+'</p>':'')+'</div>'+
+      '<div class="row" style="flex-wrap:wrap;margin-top:10px"><button class="btn primary" data-act="rvstudyok">Entendi</button><button class="btn ghost" data-act="rvstudyagain">Rever amanhã</button></div></section>';
+  }
   var h='<section class="card"><div class="row"><span class="chip">'+CAT[e.category]+'</span><span class="small muted grow">'+uname(e.unit)+'</span><span class="small muted num">'+pos+' de '+tot+'</span></div>'+
     (e.category==='escuta'?'<p class="small"><strong>O que fazer:</strong> ouça a frase e escreva em inglês o que você ouviu. Use "Devagar" se precisar.</p><div class="row" style="flex-wrap:wrap"><button class="btn primary" data-act="sayfull" data-say="'+esc(e.correct)+'">'+ic(I.vol,18)+' Ouvir</button><button class="btn" data-act="sayslow" data-say="'+esc(e.correct)+'">'+ic(I.vol,18)+' Devagar</button></div>':'<p class="small"><strong>O que fazer:</strong> '+(String(e.written||'').trim().split(/\s+/).length<=4?'escreva em inglês a forma correta deste trecho. Pode ser só essa parte, não precisa de frase completa.':'reescreva em inglês esta frase, corrigindo o erro.')+'</p><p class="small muted" style="margin-top:10px">Você escreveu na conversa:</p><p style="font-size:19px;margin-top:2px"><span class="wrongtxt">'+esc(e.written)+'</span></p>'+(e.point?'<p class="small muted">Assunto do erro: '+esc(e.point)+'</p>':''));
   if(!r){
@@ -3483,6 +3505,7 @@ function act(a,t){
      if(!val){flash('Escreva a frase antes de conferir.');break;}
      S.rv={id:cur.id,val:val,res:norm(val)===norm(cur.correct)?1:0,skip:false};render();break;}
    case 'rvskip':{var c2=S.rvCur();if(!c2)break;S.rv={id:c2.id,val:'',res:0,skip:true};render();break;}
+   case 'rvstudyok':case 'rvstudyagain':{var c3=S.rvCur();if(c3)applyReview(c3.id,a==='rvstudyok');break;}
    case 'rvself':if(S.rv){S.rv.res=1;render();}break;
    case 'rvnext':if(S.rv)applyReview(S.rv.id,!!S.rv.res);break;
   }
