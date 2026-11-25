@@ -849,7 +849,15 @@ function feedback(q,res){
   if(q.type==='open')return '<div class="okbox small"><strong>Resposta registrada.</strong>'+(q.ref?'<br>Referência: '+esc(q.ref):'')+(q.note?'<br>'+esc(q.note):'')+'</div>';
   return res===1?'<div class="okbox small"><strong>Correto.</strong>'+trAns(q)+'</div>':'<div class="warnbox small"><strong>Quase.</strong> Resposta esperada: '+esc(showAns(q))+trAns(q)+'</div>';
 }
-function qHead(qi,q){return '<div class="row"><span class="qn num">'+(qi+1)+'</span><span class="small muted grow">'+esc(q.instr||(q.type==='fill'?'Complete:':q.type==='open'?'Responda:':''))+'</span></div>';}
+function qInstr(q){
+  if(q.instr)return q.instr;
+  if(q.type==='fill'){var n=q.ans?q.ans.length:1;return n>1?'Complete as '+n+' lacunas em inglês:':'Complete a lacuna em inglês:';}
+  if(q.type==='choice')return 'Escolha a melhor opção:';
+  if(q.type==='open')return 'Responda em inglês:';
+  if(q.type==='fix')return 'Corrija a frase:';
+  return '';
+}
+function qHead(qi,q){return '<div class="row"><span class="qn num">'+(qi+1)+'</span><span class="small muted grow">'+esc(qInstr(q))+'</span></div>';}
 function exBlock(n,L,qi,q,res){
   var base='x'+n+'-'+L+'-'+qi,h='<div class="q">'+qHead(qi,q)+ctxHtml(q);
   if(q.type==='choice'){
