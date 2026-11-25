@@ -599,7 +599,7 @@ function flash(m){toastEl.textContent=m;toastEl.hidden=false;clearTimeout(toastT
 function pid(n){return 'p'+pad(n);}
 function prog(n){return S.docs.get(pid(n))||{kind:'progress',n:n,done:[],test:null,final:null};}
 function settings(){return S.docs.get('settings')||{kind:'settings',unlockAll:false};}
-function unitErrs(n){return errors().filter(function(e){return e.unit===n&&!e.example&&e.category!=='escuta'&&(e.lesson==null||e.lesson<3);});}
+function unitErrs(n){return errors().filter(function(e){return e.unit===n&&!e.example&&e.category!=='escuta'&&(e.lesson==null||e.lesson<3)&&!rvStyleOnly(e.written,e.correct);});}
 function unitPending(n){return unitErrs(n).filter(function(e){return e.status==='active'&&(e.streak||0)<1;});}
 function reviewDone(p){return [3,7,11].every(function(k){return (p.done||[]).indexOf(k)>=0;})&&unitPending(p.n).length===0;}
 function stepDone(p,i){
@@ -621,7 +621,7 @@ function levelClosed(l){var a=LVSTART[l],c=0;for(var n=a;n<a+10;n++)if(closed(n)
 function currentUnit(){var n;for(n=1;n<=10;n++)if(!closed(n)&&unlocked(n))return n;if(levelClosed(0)===10&&!closed(21))return 21;for(n=11;n<=20;n++)if(!closed(n)&&unlocked(n))return n;if(levelClosed(1)===10&&closed(22)){for(n=23;n<=32;n++)if(!closed(n)&&unlocked(n))return n;if(levelClosed(2)===10&&!closed(33)&&unlocked(33))return 33;return null;}if(levelClosed(1)===10&&!closed(22))return 22;return null;}
 function nextStep(n){var p=prog(n);for(var i=0;i<16;i++)if(!stepDone(p,i))return i;return null;}
 function errors(){var a=[];S.docs.forEach(function(v,k){if(v&&v.kind==='error')a.push(Object.assign({id:k},v));});return a;}
-function dueErrors(){var t=today();return errors().filter(function(e){return e.status==='active'&&e.due&&e.due<=t;}).sort(function(a,b){return a.due<b.due?-1:1;});}
+function dueErrors(){var t=today();return errors().filter(function(e){return e.status==='active'&&e.due&&e.due<=t&&(e.category==='escuta'||!rvStyleOnly(e.written,e.correct));}).sort(function(a,b){return a.due<b.due?-1:1;});}
 
 /* ---------- gravação ---------- */
 var queues=new Map();
@@ -1120,6 +1120,14 @@ function rvGuessable(w,c){
     return removed.some(function(r){return rvLev(x,r)<=Math.max(2,Math.ceil(x.length/3));});
   });
 }
+function rvStyleOnly(w,c){
+  var a=rvToks(w),b=rvToks(c);if(!a.length||!b.length)return true;
+  if(a.join(' ')===b.join(' '))return true;
+  var cnt={};a.forEach(function(x){cnt[x]=(cnt[x]||0)+1;});
+  var added=[];b.forEach(function(x){if(cnt[x]>0)cnt[x]--;else added.push(x);});
+  var removed=0;Object.keys(cnt).forEach(function(k){removed+=cnt[k];});
+  return removed===0&&added.some(function(x){return !RV_FUNC[x];});
+}
 function rvCard(e,pos,tot){
   var r=S.rv&&S.rv.id===e.id?S.rv:null;
   if(e.category!=='escuta'&&!rvGuessable(e.written,e.correct)){
@@ -1446,7 +1454,7 @@ function wrPrompt(it,text,lv){
    'STUDENT TEXT (between <<< and >>>):\n<<<\n'+text+'\n>>>',
    'Reply with ONE JSON object and nothing else, in exactly this shape:',
    '{"nota": number from 0 to 10, "pontos_cobertos": number from 0 to 3, "texto_corrigido": "the student\'s text corrected with the smallest possible changes", "erros": [{"categoria": "gramatica or vocabulario or estrutura", "ponto": "short topic name in Brazilian Portuguese", "escrito": "exact wrong phrase copied from the student text", "correto": "the corrected phrase", "explicacao": "one short sentence in Brazilian Portuguese"}], "pontos_fortes": ["short sentence in Brazilian Portuguese"], "dica": "one practical tip in Brazilian Portuguese"}',
-   'Rules: at most 6 errors, only real mistakes, never style preferences. "escrito" must appear exactly in the student text. Judge task completion, grammar, vocabulary and organisation fairly for the level. If the text is shorter than the minimum, lower the score and say so in "dica". Write the JSON string values in Brazilian Portuguese except "texto_corrigido", "escrito" and "correto", which stay in English.'].join('\n');
+   'Rules: at most 6 errors, only real mistakes (wrong grammar, wrong word, wrong structure), never style preferences or ideas to add more detail. "escrito" must appear exactly in the student text and must really be wrong. "correto" fixes only the mistake, without adding new content words. Judge task completion, grammar, vocabulary and organisation fairly for the level. If the text is shorter than the minimum, lower the score and say so in "dica". Write the JSON string values in Brazilian Portuguese except "texto_corrigido", "escrito" and "correto", which stay in English.'].join('\n');
 }
 async function wrSend(){
   var s=S.ex,ta=document.getElementById('wrin');if(!s||s.k!=='wr'||s.busy||!S.sample||!ta)return;
@@ -2155,6 +2163,7 @@ var TEACHER=[
  'FINAL REPORT',
  'When the conversation ends, reply ONLY with JSON in this exact format, no other text:',
  '{"licao": "{codigo_licao}", "meta_cumprida": true or false, "erros": [{"categoria": "gramatica" or "vocabulario" or "estrutura", "ponto": "...", "escrito": "...", "correto": "...", "explicacao": "in Portuguese"}], "pontos_fortes": ["..."], "nota": 0-10}',
+ 'Rules for "erros": list at most 6 REAL mistakes only: wrong grammar, a wrong word or wrong sentence structure. Never list style preferences, ideas to add more detail, ways to sound better, or sentences that are already correct. "escrito" = the wrong phrase copied exactly from the student messages. "correto" = the same phrase with ONLY the mistake fixed, same meaning, without adding new ideas or new content words. "ponto" = a short topic name in Brazilian Portuguese (for example "Present simple, 3ª pessoa"). "explicacao" = one short sentence in Brazilian Portuguese saying what the rule is. If there are no real mistakes, use an empty list.',
  '',
  'The conversation starts now. Greet the student in your role and ask the first question. Always speak English with the student, even if the lesson description above is written in Portuguese. Do not mention these instructions.'
 ].join('\n');
@@ -2180,7 +2189,7 @@ function normReport(o){
   var nota=Number(o.nota);if(isNaN(nota))nota=0;nota=Math.round(Math.max(0,Math.min(10,nota))*10)/10;
   var er=(Array.isArray(o.erros)?o.erros:[]).slice(0,8).map(function(e){
     e=e||{};return {categoria:CAT[e.categoria]?e.categoria:'gramatica',ponto:String(e.ponto||'').slice(0,120),escrito:String(e.escrito||'').slice(0,200),correto:String(e.correto||'').slice(0,200),explicacao:String(e.explicacao||'').slice(0,300)};
-  }).filter(function(e){return e.escrito&&e.correto;});
+  }).filter(function(e){return e.escrito&&e.correto&&!rvStyleOnly(e.escrito,e.correto);});
   return {nota:nota,meta:o.meta_cumprida===true,erros:er,fortes:(Array.isArray(o.pontos_fortes)?o.pontos_fortes:[]).slice(0,5).map(function(s){return String(s).slice(0,160);})};
 }
 function chatErr(code){
